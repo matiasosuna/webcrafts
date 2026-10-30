@@ -49,7 +49,7 @@ fi
 # report of the last 24 h
 SINCE=$(( $(date +%s) - 86400 ))
 ev() { d1 "SELECT slug, type, detail FROM events WHERE created_at >= $SINCE AND type IN ($1) ORDER BY created_at" |
-  python3 -c 'import json,sys; [print(f"- {r[\"slug\"]}: {r[\"type\"]} · {(r[\"detail\"] or \"\")[:90]}") for r in json.load(sys.stdin)]'; }
+  python3 -c 'import json,sys; [print(f"- {r["slug"]}: {r["type"]} · {(r["detail"] or "")[:90]}") for r in json.load(sys.stdin)]'; }
 SALES=$(ev "'activated','reserve','claim_click'")
 SEEN=$(ev "'human_view'")
 FAILS=$(ev "'send_fail'")
