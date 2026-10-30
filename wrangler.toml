@@ -25,4 +25,4 @@ database_id = "8f48166b-2b5a-4a44-bc41-e2c95678e5ee"
 
 [triggers]
 # daily expiry + one email every 30 min, Mon-Fri 8:00-17:30 Central (13-22 UTC)
-crons = ["17 9 * * *", "*/30 13-22 * * 1-5"]
+crons = ["17 9 * * *", "*/30 13-22 * * MON-FRI"]
