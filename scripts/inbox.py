@@ -52,7 +52,7 @@ def main():
     e = env()
     if not e.get("ZOHO_SMTP_PASS"):
         sys.exit("no Zoho password: skipping inbox")
-    seen = set(json.loads(SEEN.read_text())) if SEEN.exists() else set()
+    seen = set(json.loads(SEEN.read_text())) if SEEN.exists() and SEEN.read_text().strip() else set()
     im = imaplib.IMAP4_SSL("imappro.zoho.com", 993)
     im.login(e["ZOHO_SMTP_USER"], e["ZOHO_SMTP_PASS"])
 

@@ -8,8 +8,8 @@ cd "$(dirname "$0")/.."
 N=${N:-20}; MIN_READY=${MIN_READY:-40}
 mkdir -p data
 KV="npx -y wrangler@4 kv key put --remote --namespace-id 55a4be3b52bc4c04bcd686f40e79ad8a"
-npx -y wrangler@4 kv key get --remote --namespace-id 55a4be3b52bc4c04bcd686f40e79ad8a data.tgz --file data.tgz >/dev/null 2>&1 \
-  && tar xzf data.tgz && rm -f data.tgz || echo "sin datos previos"
+npx -y wrangler@4 kv key get --remote --namespace-id 55a4be3b52bc4c04bcd686f40e79ad8a data.tgz > data.tgz 2>/dev/null \
+  && tar xzf data.tgz && rm -f data.tgz || { rm -f data.tgz; echo "sin datos previos"; }
 save() { tar czf data.tgz --exclude='data/.*' --exclude=data/report.md data && $KV data.tgz --path data.tgz >/dev/null 2>&1 && rm -f data.tgz; }
 trap save EXIT
 d1() { npx -y wrangler@3 d1 execute webcrafts --remote --json --command "$1" 2>/dev/null |
@@ -21,26 +21,39 @@ INBOX=$(python3 scripts/inbox.py 2>>data/run.log || echo "(no se pudo leer el in
 READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT NULL AND sent_at IS NULL AND slug!='demo'")
 BUILT=""
 if [ "$READY" -lt "$MIN_READY" ]; then
-  # cities whose audit file is missing get downloaded and audited, one per day
-  while IFS='|' read -r city iso; do
-    f="data/$(echo "$city" | tr 'A-Z ' 'a-z-').jsonl"; a="${f%.jsonl}.audit.jsonl"
-    [ -s "$a" ] && continue
+  # cities in cities_done.txt are used up; each run audits at most 2 new cities (about 15 min each)
+  DONE=data/cities_done.txt; touch "$DONE"
+  build() {  # up to N previews from every audited city; a city that gives nothing new is used up
+    for a in data/*.audit.jsonl; do
+      [ -e "$a" ] || continue
+      left=$((N - $(echo $BUILT | wc -w))); [ "$left" -le 0 ] && return
+      out=$(python3 scripts/build_previews.py "$a" --limit "$left" --min-score 3 2>>data/run.log | sed -n 's|^https://\(.*\)\.webcrafts\.page$|\1|p')
+      if [ -z "$out" ]; then basename "${a%.audit.jsonl}" >> "$DONE"; rm -f "$a" "${a%.audit.jsonl}.jsonl"; fi
+      BUILT="$BUILT $out"
+    done
+  }
+  build
+  tries=0
+  while [ "$(echo $BUILT | wc -w)" -lt "$N" ] && [ "$tries" -lt 2 ]; do
+    next=""
+    while IFS='|' read -r city iso; do
+      c=$(echo "$city" | tr 'A-Z ' 'a-z-'); grep -qx "$c" "$DONE" || [ -s "data/$c.audit.jsonl" ] || { next="$city|$iso"; break; }
+    done < scripts/cities.txt
+    [ -z "$next" ] && break
+    city=${next%|*}; iso=${next#*|}; f="data/$(echo "$city" | tr 'A-Z ' 'a-z-').jsonl"; a="${f%.jsonl}.audit.jsonl"
+    tries=$((tries + 1))
     python3 scripts/osm_leads.py "$city" "$iso" "$f" 2>>data/run.log && python3 scripts/audit.py "$f" "$a" >/dev/null 2>>data/run.log
-    # keep the repo small: the site text is only needed for businesses we can email
-    python3 - "$a" <<'PY'
+    [ -s "$a" ] || { basename "$f" .jsonl >> "$DONE"; continue; }
+    # keep the stored data small: the site text is only needed for businesses we can email
+    python3 - "$a" <<'PY2'
 import json, sys
 p = sys.argv[1]; rows = [json.loads(l) for l in open(p)]
 open(p, "w").writelines(json.dumps(r if r.get("emails") else {k: v for k, v in r.items() if k != "content"}) + "\n" for r in rows)
-PY
-    break
-  done < scripts/cities.txt
-  left=$N
-  for a in data/*.audit.jsonl; do
-    [ "$left" -le 0 ] && break
-    out=$(python3 scripts/build_previews.py "$a" --limit "$left" --min-score 3 2>>data/run.log | sed -n 's|^https://\(.*\)\.webcrafts\.page$|\1|p')
-    BUILT="$BUILT $out"; left=$((N - $(echo $BUILT | wc -w)))
+PY2
+    build
   done
-  if [ -n "${BUILT// }" ]; then
+  BUILT=$(echo $BUILT)
+  if [ -n "$BUILT" ]; then
     python3 scripts/photos.py $BUILT 2>>data/run.log
     python3 scripts/bespoke.py $BUILT 2>>data/run.log
   fi
