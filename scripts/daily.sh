@@ -16,6 +16,9 @@ d1() { npx -y wrangler@3 d1 execute webcrafts --remote --json --command "$1" 2>/
   python3 -c 'import json,sys; t=sys.stdin.read(); print(json.dumps(json.loads(t[t.index("[\n"):])[0]["results"]))'; }
 n() { d1 "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["n"])'; }
 
+# manual run with REDO="slug slug": only redesign those pages
+if [ -n "${REDO:-}" ]; then python3 scripts/bespoke.py --redo $REDO 2>>data/run.log; echo "rehechas: $(echo $REDO | wc -w)"; exit 0; fi
+
 INBOX=$(python3 scripts/inbox.py 2>>data/run.log || echo "(no se pudo leer el inbox: falta la clave de Zoho)")
 
 READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT NULL AND sent_at IS NULL AND slug!='demo'")

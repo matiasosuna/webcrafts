@@ -4,7 +4,7 @@ full page; if Claude is missing or out of quota, Gemini (free tier) does it.
 Written from the business's own text and photos, then fact-checked by Gemini. Stored in sites.html; the worker adds the preview bar and buy section.
 Usage: bespoke.py [slug ...]   (no args = every preview without a bespoke page yet)   --redo to overwrite
 """
-import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
+import json, os, random, re, shutil, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -15,6 +15,15 @@ ROOT = Path(__file__).resolve().parent.parent
 PROMPT = """You are a top web designer. Design ONE custom homepage for this real local business. It must feel made for them only:
 the layout, typography, colours, section order and small details should come from what this business is and how it talks about itself
 (a Deep Ellum barbecue joint, a family dentist, a roofing crew and a nail lounge must look nothing alike). Avoid generic template looks.
+
+STRUCTURE FOR THIS PAGE (we make many sites; each one gets a different structure, so follow this one):
+{layout}
+Do NOT use the usual AI landing page: sticky bar with logo left / links / "Call" button right, then a big headline on the left with a
+photo on the right, then three icon cards. Also avoid: gradient blobs, glassmorphism, pill badges above the headline, emoji, "Welcome to".
+
+TYPE: choose one or two of these Google Fonts (they suit different moods; pick what fits this business): {fonts}
+Never use Inter, Roboto, Open Sans, Lato, Poppins, Montserrat, Raleway, Nunito, DM Sans, DM Serif, Space Grotesk, Plus Jakarta Sans,
+Manrope, Outfit, Sora, Syne, Unbounded, Playfair Display, Cormorant, Fraunces, Barlow, Oswald, Work Sans, Figtree, Lexend, Pacifico or Lobster.
 
 HARD RULES
 - Use ONLY facts from the business text below. Never invent prices, years, awards, reviews, testimonials, staff names, guarantees or menu items.
@@ -41,6 +50,29 @@ Areas: {areas}
 THEIR CURRENT WEBSITE TEXT
 {text}
 """
+
+
+LAYOUTS = [
+    "Editorial: a full-width photo at the very top with the name set like a magazine masthead; content in a 2-3 column text grid with pull quotes from their own text.",
+    "Poster: the first screen is pure typography, one huge statement in the display font filling the width, no photo; photos come later as a horizontal strip.",
+    "Split: a fixed left panel (name, one line, phone, address, hours) and a right side that scrolls through services, about and photos. On mobile it stacks.",
+    "Bento: everything (services, hours, about, photos, contact) as tiles of different sizes in one asymmetric grid, no classic hero.",
+    "Letter: a narrow centred column that reads like a note from the owner, with services as a simple list and photos set inline like snapshots.",
+    "Storefront sign: the header looks like their real shop sign (borders, stamped labels, strong colour blocks); sections are framed like printed panels.",
+    "List first: open with their services or menu as a big bold numbered list (no prices unless the text has them), then about, hours and map.",
+    "Steps: built around how working with them goes (call, visit, done) as a large vertical sequence, with services and about inside it.",
+    "Full-bleed bands: alternating edge-to-edge bands, photo bands with text overlaid and solid colour bands, no boxed cards anywhere.",
+    "Swiss: strict grid, small precise type, lots of white space, numbered sections (01, 02...) and thin rules, one strong accent colour.",
+]
+FONTS = [
+    "Bricolage Grotesque", "Instrument Serif", "Instrument Sans", "Young Serif", "Gloock", "Bagel Fat One", "Rubik Mono One", "Chivo",
+    "Familjen Grotesk", "Anybody", "Big Shoulders Display", "Alfa Slab One", "Zilla Slab", "Rozha One", "Bodoni Moda",
+    "Libre Caslon Display", "Shrikhand", "Bungee", "Staatliches", "Literata", "Newsreader", "Gelasio", "Spectral", "Epilogue",
+    "Tenor Sans", "Rammetto One", "Darker Grotesque", "Gabarito", "Onest", "Golos Text", "Commissioner", "Schibsted Grotesk",
+    "Fragment Mono", "Martian Mono", "Courier Prime", "Caveat", "Kalam", "Permanent Marker", "Yeseva One", "Antonio", "Sanchez",
+    "Arvo", "Crete Round", "Fjalla One", "Saira Condensed", "Pathway Gothic One", "Hanken Grotesk", "Red Hat Display",
+    "Archivo Narrow", "Bowlby One", "Climate Crisis", "Dela Gothic One", "Righteous", "Sniglet", "Della Respira", "Gupter",
+]
 
 
 def d1(sql_or_file, file=False):
@@ -169,7 +201,9 @@ def main():
     rows = [r for r in rows if (not slugs or r["slug"] in slugs) and (redo or slugs or not r["done"])]
     osm = {json.loads(l)["slug"]: json.loads(l)["osm"] for l in open(ROOT / "data/previews.jsonl")}
     content, k, ok = audit_content(), key(), 0
-    for r in rows:
+    layouts = LAYOUTS[:]
+    random.shuffle(layouts)  # no two pages in one run share a structure
+    for i, r in enumerate(rows):
         d = json.loads(r["data"])
         c = content.get(osm.get(r["slug"]), {})
         photos = (d.get("photos") or ([d["image"]] if d.get("image") else []))[:8]
@@ -178,7 +212,8 @@ def main():
         text += "\n\nSummary we already wrote: " + json.dumps({k2: d.get(k2) for k2 in ("tagline", "services", "about", "contact_line")})
         tel = "tel:" + re.sub(r"[^\d+]", "", d.get("phone") or "")
         maps = "https://www.google.com/maps/search/?api=1&query=" + urllib.request.quote(", ".join(x for x in (r["name"], d.get("address"), d.get("city"), d.get("region")) if x))
-        prompt = PROMPT.format(photos=plist, maps=maps, tel=tel, name=r["name"], category=d.get("category"), address=d.get("address") or "",
+        fonts = ", ".join(random.sample(FONTS, 8))
+        prompt = PROMPT.format(layout=layouts[i % len(layouts)], fonts=fonts, photos=plist, maps=maps, tel=tel, name=r["name"], category=d.get("category"), address=d.get("address") or "",
                                city=d.get("city"), region=d.get("region"), phone=d.get("phone"), email=d.get("email"),
                                hours=json.dumps(d.get("hours") or []), areas=", ".join(d.get("areas") or []), text=text)
         print(f"→ {r['slug']}", file=sys.stderr)

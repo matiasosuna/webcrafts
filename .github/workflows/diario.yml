@@ -12,6 +12,9 @@ on:
       min_ready:
         description: "Armar solo si quedan menos de estas listas (999 = armar igual)"
         default: "40"
+      rehacer:
+        description: "Solo rediseñar estas webs (slugs separados por espacio)"
+        default: ""
 permissions:
   contents: read
 concurrency: diario
@@ -30,6 +33,7 @@ jobs:
         env:
           N: ${{ inputs.n || '20' }}
           MIN_READY: ${{ inputs.min_ready || '40' }}
+          REDO: ${{ inputs.rehacer }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
