@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Design a one-off website for each business (not a template): Claude (Matías's plan, via CLAUDE_CODE_OAUTH_TOKEN) writes the
-full page; if Claude is missing or out of quota, Gemini (free tier) does it. Gemini always fact-checks
-from the business's own text and photos. Stored in sites.html; the worker adds the preview bar and buy section.
+full page; if Claude is missing or out of quota, Gemini (free tier) does it.
+Written from the business's own text and photos, then fact-checked by Gemini. Stored in sites.html; the worker adds the preview bar and buy section.
 Usage: bespoke.py [slug ...]   (no args = every preview without a bespoke page yet)   --redo to overwrite
 """
 import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
