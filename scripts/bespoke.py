@@ -34,6 +34,7 @@ HARD RULES
 {photos}
 - Must include: business name, what they do, their real services/menu/offer from the text, about, hours (if given), service areas (if given),
   address with a Google Maps link ({maps}), phone as a tel: link ({tel}), email (if given) shown as text.
+- Text placed on a photo must sit on a solid or strongly darkened panel so every word is easy to read (no coloured text straight on a busy photo).
 - Mobile-first and responsive (looks great at 375px and 1280px), good contrast, big tap targets, a sticky or repeated "Call" action on mobile.
 - Do NOT add any "preview", pricing, "buy", "WebCrafts" or footer credit; that is added later. Keep it under 45 KB.
 Return only the HTML.
