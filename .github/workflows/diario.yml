@@ -1,5 +1,5 @@
 # Todos los días a las 5:00 de Hawái: inbox, negocios nuevos y una web a medida para cada uno (Gemini gratis).
-# Los mails los manda el cron del Worker. Los datos privados viven en Cloudflare KV; el log público solo muestra conteos.
+# Los mails los manda el cron del Worker (no este workflow). Los datos privados viven en Cloudflare KV; el log público solo muestra conteos.
 name: Diario
 on:
   schedule:
