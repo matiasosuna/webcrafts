@@ -1,0 +1,18 @@
+# Publica el Worker cada vez que cambia su código en main.
+name: Deploy
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "wrangler.toml"]
+  workflow_dispatch:
+concurrency: deploy
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx -y wrangler@4 deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d

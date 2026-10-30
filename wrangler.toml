@@ -1,0 +1,28 @@
+name = "webcrafts"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+account_id = "632d122307cbf5e90a58f597c9c2157d"
+workers_dev = true
+
+routes = [
+  { pattern = "webcrafts.page", custom_domain = true },
+  { pattern = "*.webcrafts.page/*", zone_name = "webcrafts.page" }
+]
+
+[vars]
+BASE = "https://webcrafts.page"
+PRICE_LABEL = "$49/month"
+# cold emails from the cron ("0" stops them). Text OKed by Matías on 2026-10-29
+SEND_ENABLED = "1"
+SEND_MAX = "15"
+# 2026-10-25 00:00 UTC: skip the 24-oct batch until we know from Zoho who already got an email
+SEND_FROM = "1792886400"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "webcrafts"
+database_id = "8f48166b-2b5a-4a44-bc41-e2c95678e5ee"
+
+[triggers]
+# daily expiry + one email every 30 min, Mon-Fri 8:00-17:30 Central (13-22 UTC)
+crons = ["17 9 * * *", "*/30 13-22 * * 1-5"]

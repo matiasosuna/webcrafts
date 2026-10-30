@@ -1,0 +1,9 @@
+data/.*.sql
+data/run.log
+data/report.md
+.dev.vars
+.env
+.wrangler/
+node_modules
+.secrets.json
+data/

@@ -1,0 +1,32 @@
+# Todos los días a las 5:00 de Hawái: inbox, negocios nuevos y una web a medida para cada uno (Gemini gratis).
+# Los mails los manda el cron del Worker. Los datos privados viven en Cloudflare KV; el log público solo muestra conteos.
+name: Diario
+on:
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      n:
+        description: "Cuántas webs nuevas armar"
+        default: "20"
+permissions:
+  contents: read
+concurrency: diario
+jobs:
+  diario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q pillow
+      - run: scripts/daily.sh
+        env:
+          N: ${{ inputs.n || '20' }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ZOHO_SMTP_USER: matias@webcrafts.page
+          ZOHO_SMTP_PASS: ${{ secrets.ZOHO_SMTP_PASS }}

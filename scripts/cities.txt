@@ -1,0 +1,20 @@
+Austin|US-TX
+Houston|US-TX
+San Antonio|US-TX
+Dallas|US-TX
+Denver|US-CO
+Phoenix|US-AZ
+Tampa|US-FL
+Fort Worth|US-TX
+Charlotte|US-NC
+Nashville|US-TN
+Atlanta|US-GA
+Orlando|US-FL
+Raleigh|US-NC
+Las Vegas|US-NV
+Salt Lake City|US-UT
+Kansas City|US-MO
+Columbus|US-OH
+Indianapolis|US-IN
+Jacksonville|US-FL
+Oklahoma City|US-OK
