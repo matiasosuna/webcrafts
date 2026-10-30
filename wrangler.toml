@@ -16,7 +16,7 @@ PRICE_LABEL = "$49/month"
 SEND_ENABLED = "1"
 SEND_MAX = "15"
 # 2026-10-25 00:00 UTC: skip the 24-oct batch until we know from Zoho who already got an email
-SEND_FROM = "1792886400"
+SEND_FROM = "0"
 
 [[d1_databases]]
 binding = "DB"
