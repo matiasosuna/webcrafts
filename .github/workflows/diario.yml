@@ -1,4 +1,4 @@
-# Todos los días a las 5:00 de Hawái: inbox, negocios nuevos y una web a medida para cada uno (Gemini gratis).
+# Todos los días a las 5:00 de Hawái: inbox, negocios nuevos y una web a medida para cada uno (Claude con el plan de Matías; Gemini gratis de respaldo).
 # Los mails los manda el cron del Worker (no este workflow). Los datos privados viven en Cloudflare KV; el log público solo muestra conteos.
 name: Diario
 on:
@@ -22,11 +22,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -q pillow
+      - run: npm install -g @anthropic-ai/claude-code
       - run: scripts/daily.sh
         env:
           N: ${{ inputs.n || '20' }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           ZOHO_SMTP_USER: matias@webcrafts.page
           ZOHO_SMTP_PASS: ${{ secrets.ZOHO_SMTP_PASS }}

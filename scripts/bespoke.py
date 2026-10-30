@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Design a one-off website for each business (not a template): Gemini (free tier) writes the full page
+"""Design a one-off website for each business (not a template): Claude (Matías's plan, via CLAUDE_CODE_OAUTH_TOKEN) writes the
+full page; if Claude is missing or out of quota, Gemini (free tier) does it. Gemini always fact-checks
 from the business's own text and photos. Stored in sites.html; the worker adds the preview bar and buy section.
 Usage: bespoke.py [slug ...]   (no args = every preview without a bespoke page yet)   --redo to overwrite
 """
-import json, re, subprocess, sys, time, urllib.request
+import json, os, re, shutil, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -57,6 +58,32 @@ def audit_content():
             if r.get("content"):
                 c[r["osm"]] = r["content"]
     return c
+
+
+CLAUDE = {"live": bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")) and bool(shutil.which("claude"))}
+
+
+def claude(prompt):
+    """One page from Claude Code in print mode, run in an empty folder so it has nothing to read or touch."""
+    if not CLAUDE["live"]:
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            p = subprocess.run(["claude", "-p", "--model", "opus", "--output-format", "text"], input=prompt, cwd=tmp,
+                               capture_output=True, text=True, timeout=900)
+        except subprocess.TimeoutExpired:
+            print("  claude timed out", file=sys.stderr)
+            return None
+    if p.returncode != 0 or "<html" not in p.stdout.lower():
+        # usage limit or auth problem: the rest of today's pages go to Gemini
+        CLAUDE["live"] = False
+        print(f"  claude unavailable (exit {p.returncode}), switching to Gemini", file=sys.stderr)
+        return None
+    return p.stdout
+
+
+def design(k, prompt):
+    return claude(prompt) or gemini(k, prompt)
 
 
 def gemini(k, prompt, json_mode=False):
@@ -155,11 +182,11 @@ def main():
                                city=d.get("city"), region=d.get("region"), phone=d.get("phone"), email=d.get("email"),
                                hours=json.dumps(d.get("hours") or []), areas=", ".join(d.get("areas") or []), text=text)
         print(f"→ {r['slug']}", file=sys.stderr)
-        h = gemini(k, prompt)
+        h = design(k, prompt)
         h = h and clean(h, len(photos))
         if not h or r["name"].split()[0].lower() not in h.lower():
             print("  skipped (bad output)", file=sys.stderr)
-            if not [m for m in MODELS if m not in DEAD]:
+            if not CLAUDE["live"] and not [m for m in MODELS if m not in DEAD]:
                 break
             continue
         h = factcheck(k, h, prompt.split('BUSINESS', 1)[1])  # contact details + their site text
