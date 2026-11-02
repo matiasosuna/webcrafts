@@ -9,15 +9,19 @@ const hdr = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
 
 // v1: text Matías approved on 2026-10-29. v2 and the follow-up: approved on 2026-11-02, switched on in wrangler.toml
 // (TEMPLATE = "v2", FOLLOWUP_ENABLED = "1").
+// OSM sometimes lists several names ("Broken Spoke;The Broken Spoke"): keep the first.
+export const cleanName = (n) => n.split(';')[0].trim().replace(/\.$/, '');
+const poss = (n) => (/s$/i.test(n) ? `${n}'` : `${n}'s`);
+
 export function compose(row, data, env, issue) {
-  const name = row.name.replace(/\.$/, '');
+  const name = cleanName(row.name);
   const url = `https://${row.slug}.webcrafts.page`;
   if (env.TEMPLATE === 'v2') {
     const opening = issue
-      ? `I was looking at ${name}'s website and noticed ${issue}. So I made a new version that works well on phones, using what's already on your site:`
-      : `I made a new version of ${name}'s website that works well on phones, using what's already on your site:`;
+      ? `I was looking at ${poss(name)} website and noticed ${issue}. So I made a new version that works well on phones, using what's already on your site:`
+      : `I made a new version of ${poss(name)} website that works well on phones, using what's already on your site:`;
     return {
-      subject: `${name}'s website`,
+      subject: `${poss(name)} website`,
       text: `Hi,
 
 ${opening}
@@ -193,7 +197,7 @@ export async function sendNext(env, now) {
     ).bind(now - 4 * 86400, now - 20 * 86400).first();
     if (f) {
       const [, msgId, ...subj] = f.detail.split(' ');
-      const { subject, text } = composeFollowup(f, env, subj.join(' ') || `New website for ${f.name.replace(/\.$/, '')} (free preview)`);
+      const { subject, text } = composeFollowup(f, env, subj.join(' ') || `New website for ${cleanName(f.name)} (free preview)`);
       return deliver(env, f, now, 'followup', subject, text, msgId);
     }
   }

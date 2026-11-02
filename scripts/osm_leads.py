@@ -64,7 +64,7 @@ def main():
                 continue
             kind = next((f"{k}={t[k]}" for k in KEEP if k in t), "")
             f.write(json.dumps({
-                "osm": f"{e['type']}/{e['id']}", "name": t.get("name"), "kind": kind, "website": site,
+                "osm": f"{e['type']}/{e['id']}", "name": t["name"].split(";")[0].strip(), "kind": kind, "website": site,
                 "phone": t.get("phone") or t.get("contact:phone"), "email": t.get("email") or t.get("contact:email"),
                 "street": " ".join(x for x in (t.get("addr:housenumber"), t.get("addr:street")) if x) or None,
                 "city": t.get("addr:city") or city, "region": iso.split("-")[1], "hours": t.get("opening_hours"),

@@ -8,9 +8,12 @@ const html = (body, status = 200, extra = {}) =>
   new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', ...extra } });
 const redirect = (url, status = 303) => Response.redirect(url, status);
 const BOT = /bot|crawl|spider|preview|scan|python|curl|wget|headless|go-http|java\/|okhttp|axios|proofpoint|mimecast|barracuda|safelinks/i;
+// link scanners run a real browser from a datacenter (Microsoft Safe Links, Amazon, DigitalOcean…).
+// Fastly, Akamai and Cloudflare are left out: iCloud Private Relay (real iPhones) exits through them.
+const DC = /microsoft corp|amazon|digitalocean|google llc|google cloud|ovh|hetzner|linode|oracle|alibaba|tencent|barracuda|proofpoint|mimecast|vultr|choopa|leaseweb|m247/i;
 const who = (req) => {
   const ua = req.headers.get('user-agent') || '';
-  return { bot: !ua || BOT.test(ua), detail: `${req.cf?.country || '?'} · ${req.cf?.asOrganization || '?'} · ${ua.slice(0, 110)}` };
+  return { bot: !ua || BOT.test(ua) || DC.test(req.cf?.asOrganization || ''), detail: `${req.cf?.country || '?'} · ${req.cf?.asOrganization || '?'} · ${ua.slice(0, 110)}` };
 };
 const testMode = (env) => !/^(sk|rk)_live_/.test(env.STRIPE_SECRET_KEY || '');
 
