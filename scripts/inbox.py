@@ -96,6 +96,7 @@ def main():
             kind = "OPT-OUT"
         else:
             kind = "REPLY"
+            supp.append((frm, "replied"))  # no follow-up once they answered: Matías takes it from here
         new.append((kind, frm, subj, first[:200]))
     im.logout()
     for addr, why in supp:

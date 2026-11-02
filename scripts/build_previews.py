@@ -146,6 +146,7 @@ def main():
             "hours": g.get("hours", [])[:7], "contact_line": g.get("contact_line"), "phone": phone, "address": lead.get("street"),
             "city": lead.get("city"), "region": lead.get("region"), "email": lead["emails"][0],
             "image": (lead["content"].get("image") or "").startswith("https://") and lead["content"]["image"] or None,
+            "old_site": lead.get("final_url"),  # the mailer looks at it for one true line about their current site
         }
         now = int(time.time())
         stmts.append(
