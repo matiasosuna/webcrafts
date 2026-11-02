@@ -108,6 +108,20 @@ def sql_str(v):
     return "NULL" if v is None else "'" + str(v).replace("'", "''") + "'"
 
 
+def fit(kind):
+    """Who answers cold email about a website: trades and small services first; restaurants and clinics (flooded with
+    web pitches, often tied to ordering platforms or agencies) last."""
+    if kind.startswith(("craft=", "office=")) or kind in {"shop=car_repair", "shop=tyres", "shop=locksmith", "shop=tailor",
+            "shop=dry_cleaning", "shop=laundry", "shop=pet_grooming", "shop=florist", "shop=hairdresser", "shop=beauty",
+            "amenity=car_wash", "amenity=driving_school", "amenity=veterinarian", "leisure=dance"}:
+        return 3
+    if kind in {"amenity=restaurant", "amenity=fast_food", "amenity=cafe", "shop=coffee"}:
+        return -3
+    if kind.startswith("healthcare=") or kind in {"amenity=dentist", "amenity=clinic", "amenity=doctors"}:
+        return -1
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
@@ -130,7 +144,7 @@ def main():
     seen_email = {r["email"] for r in known if r["email"]}
     leads = [l for l in leads if l.get("emails") and not (l["emails"][0] in seen_email or seen_email.add(l["emails"][0]))]
     leads = [l for l in leads if l.get("emails") and l.get("signals", {}).get("score", 0) >= a.min_score and l["osm"] not in done]
-    leads.sort(key=lambda l: -l["signals"]["score"])
+    leads.sort(key=lambda l: -(l["signals"]["score"] + fit(l.get("kind", ""))))
     k = key()
     stmts, rows = [], []
     for lead in leads[: a.limit]:
