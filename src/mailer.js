@@ -7,8 +7,8 @@ const enc = new TextEncoder();
 const b64 = (s) => { const b = enc.encode(s); let o = ''; for (const x of b) o += String.fromCharCode(x); return btoa(o); };
 const hdr = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
 
-// v1 is the text Matías approved on 2026-10-29. v2 and the follow-up are drafts: they go live only when
-// TEMPLATE = "v2" / FOLLOWUP_ENABLED = "1" are set in wrangler.toml, after he OKs the text.
+// v1: text Matías approved on 2026-10-29. v2 and the follow-up: approved on 2026-11-02, switched on in wrangler.toml
+// (TEMPLATE = "v2", FOLLOWUP_ENABLED = "1").
 export function compose(row, data, env, issue) {
   const name = row.name.replace(/\.$/, '');
   const url = `https://${row.slug}.webcrafts.page`;

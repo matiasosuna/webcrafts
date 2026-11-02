@@ -17,6 +17,9 @@ SEND_ENABLED = "1"
 SEND_MAX = "15"
 # 2026-10-25 00:00 UTC: skip the 24-oct batch until we know from Zoho who already got an email
 SEND_FROM = "0"
+# v2 text (short subject + one true line about their current site) and one follow-up 4 days later: OKed by Matías on 2026-11-02
+TEMPLATE = "v2"
+FOLLOWUP_ENABLED = "1"
 
 [[d1_databases]]
 binding = "DB"
