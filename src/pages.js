@@ -2,11 +2,11 @@ import { esc } from './site.js';
 
 const CSS = `
 :root{--bg:#f7f5f0;--card:#fff;--ink:#1b1a17;--muted:#6b675e;--line:#e4e0d6;--a:#2f5d50;--a2:#e9f0ec}
-*{box-sizing:border-box}body{margin:0;font:16px/1.6 'Inter',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
-h1,h2,h3{font-family:'Fraunces',Georgia,serif;line-height:1.1;margin:0;text-wrap:balance}
+*{box-sizing:border-box}body{margin:0;font:16.5px/1.6 'Instrument Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-family:'Young Serif',Georgia,serif;font-weight:400;line-height:1.1;margin:0;text-wrap:balance}
 a{color:inherit}.wrap{max-width:1040px;margin:0 auto;padding:0 20px}.muted{color:var(--muted)}
 .nav{display:flex;justify-content:space-between;align-items:center;padding-block:18px}
-.logo{font-family:'Fraunces',serif;font-weight:700;font-size:21px;text-decoration:none}.logo i{color:var(--a);font-style:normal}
+.logo{font-family:'Young Serif',serif;font-size:21px;text-decoration:none}.logo i{color:var(--a);font-style:normal}
 .btn{display:inline-block;background:var(--a);color:#fff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:10px;border:0;font:inherit;font-weight:600;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px}
@@ -14,7 +14,7 @@ section{padding:64px 0}h2{font-size:clamp(28px,4vw,40px);margin-bottom:12px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 @media(max-width:800px){.grid{grid-template-columns:1fr}}
 `;
-const FONTS = `<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">`;
+const FONTS = `<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">`;
 const shell = (title, body, extraCss = '') =>
   `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
 <meta name="description" content="Websites for local businesses. We build it, host it and keep it updated for $49/month.">
@@ -26,7 +26,7 @@ export function renderLanding(env) {
   return shell('WebCrafts — websites for local businesses', `${nav}
 <header class="wrap" style="padding:56px 20px 40px"><p class="muted" style="font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:13px">For plumbers, salons, cafés, cleaners, shops…</p>
 <h1 style="font-size:clamp(40px,7vw,72px);max-width:14ch">Your business, online this week.</h1>
-<p style="font-size:20px;max-width:46ch" class="muted">We build your website, host it and change anything you ask. One flat price: <b style="color:var(--ink)">${esc(env.PRICE_LABEL)}</b>. No setup fee, no contract.</p>
+<p style="font-size:20px;max-width:46ch" class="muted">A website designed for your business only, never a template. We build it, host it and change anything you ask. One flat price: <b style="color:var(--ink)">${esc(env.PRICE_LABEL)}</b>. No setup fee, no contract.</p>
 <p style="margin-top:26px;display:flex;gap:12px;flex-wrap:wrap"><a class="btn" href="mailto:matias@webcrafts.page?subject=Website%20for%20my%20business">Get my free preview</a><a class="btn ghost" href="#how">How it works</a></p></header>
 <section id="how"><div class="wrap"><h2>How it works</h2><div class="grid" style="margin-top:24px">
 <div class="card"><h3>1. We build a preview</h3><p class="muted">Using your public business info. Free, no strings.</p></div>
@@ -41,7 +41,7 @@ export function renderLanding(env) {
 <section><div class="wrap"><h2>Questions</h2><div style="display:grid;gap:12px;margin-top:20px;max-width:720px">
 <div class="card"><b>Can I cancel?</b><p class="muted" style="margin:6px 0 0">Yes, anytime from your panel. Your site stays up until the end of the paid month.</p></div>
 <div class="card"><b>What if a payment fails?</b><p class="muted" style="margin:6px 0 0">We retry and email you. After 14 days unpaid the site is paused — never deleted — and comes back when you pay.</p></div>
-<div class="card"><b>Who's behind this?</b><p class="muted" style="margin:6px 0 0">A small studio. Write to <a href="mailto:matias@webcrafts.page">matias@webcrafts.page</a> and a person answers.</p></div>
+<div class="card"><b>Who's behind this?</b><p class="muted" style="margin:6px 0 0">I'm Matias, and WebCrafts is my small studio. Each site is made for one business, starting from what's already on its own website. Write to <a href="mailto:matias@webcrafts.page">matias@webcrafts.page</a> and I'll answer.</p></div>
 </div></div></section>
 <footer class="wrap muted" style="padding:30px 20px;font-size:14px">© ${new Date().getFullYear()} WebCrafts</footer>`);
 }
