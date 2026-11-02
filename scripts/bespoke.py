@@ -96,14 +96,41 @@ def audit_content():
 CLAUDE = {"live": bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")) and bool(shutil.which("claude"))}
 
 
-def claude(prompt):
-    """One page from Claude Code in print mode, run in an empty folder so it has nothing to read or touch."""
+LOOK = """Before designing, open every photo file in this folder with the Read tool (p0.jpg is /_p/0, p1.jpg is /_p/1, and so on).
+Use only real photographs of their place, their work, their team or their products. Do NOT use any image that is a flyer, promo banner,
+coupon, menu board, poster, graphic with words or prices on it, logo, screenshot, stock-looking clip art, or a blurry or tiny photo.
+If none are good, design without photos. Then reply with the HTML only.
+
+"""
+
+
+def fetch_photos(urls, folder):
+    """Save the business's photos as p0.jpg, p1.jpg... (max 1200px) so Claude can look at them."""
+    from PIL import Image  # only needed here
+    n = 0
+    for i, u in enumerate(urls):
+        try:
+            req = urllib.request.Request(u, headers={"user-agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                raw = r.read(8_000_000)
+            im = Image.open(__import__("io").BytesIO(raw)).convert("RGB")
+            im.thumbnail((1200, 1200))
+            im.save(Path(folder) / f"p{i}.jpg", quality=82)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+def claude(prompt, photos=()):
+    """One page from Claude Code in print mode, run in a folder that holds only the business's photos."""
     if not CLAUDE["live"]:
         return None
     with tempfile.TemporaryDirectory() as tmp:
+        seen = fetch_photos(photos, tmp) if photos else 0
         try:
-            p = subprocess.run(["claude", "-p", "--model", "opus", "--output-format", "text"], input=prompt, cwd=tmp,
-                               capture_output=True, text=True, timeout=900)
+            p = subprocess.run(["claude", "-p", "--model", "opus", "--output-format", "text", "--allowedTools", "Read"],
+                               input=(LOOK if seen else "") + prompt, cwd=tmp, capture_output=True, text=True, timeout=900)
         except subprocess.TimeoutExpired:
             print("  claude timed out", file=sys.stderr)
             return None
@@ -115,8 +142,8 @@ def claude(prompt):
     return p.stdout
 
 
-def design(k, prompt):
-    return claude(prompt) or gemini(k, prompt)
+def design(k, prompt, photos=()):
+    return claude(prompt, photos) or gemini(k, prompt)
 
 
 def gemini(k, prompt, json_mode=False):
@@ -218,7 +245,7 @@ def main():
                                city=d.get("city"), region=d.get("region"), phone=d.get("phone"), email=d.get("email"),
                                hours=json.dumps(d.get("hours") or []), areas=", ".join(d.get("areas") or []), text=text)
         print(f"→ {r['slug']}", file=sys.stderr)
-        h = design(k, prompt)
+        h = design(k, prompt, photos)
         h = h and clean(h, len(photos))
         if not h or r["name"].split()[0].lower() not in h.lower():
             print("  skipped (bad output)", file=sys.stderr)
