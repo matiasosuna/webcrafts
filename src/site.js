@@ -223,6 +223,7 @@ export function renderPaused(row) {
 export function wrapBespoke(row, h, opt) {
   const name = esc(row.name).replace(/\.$/, '');
   const css = `<style>.wcx,.wcx *{box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;letter-spacing:normal;text-transform:none}
+.wcx-bar,.wcx-buy,.wcx-credit{grid-column:1/-1;width:100%;flex:0 0 100%}.wcx-bar{order:-1}.wcx-buy,.wcx-credit{order:999}
 .wcx-bar{position:sticky;top:0;z-index:2147483000;background:#111;color:#fff;font-size:14px;line-height:1.4}
 .wcx-in{max-width:1140px;margin:0 auto;padding:10px 20px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .wcx-btn{background:#22c55e;color:#06210f!important;text-decoration:none;font-weight:700;padding:10px 18px;border-radius:999px;white-space:nowrap}
