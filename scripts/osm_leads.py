@@ -32,14 +32,12 @@ def query(city, iso, noweb=False):
     parts = []
     for k, vals in KEEP.items():
         sel = f'["{k}"]' if vals is None else f'["{k}"~"^({"|".join(sorted(vals))})$"]'
-        if noweb:
-            for ph in ("phone", "contact:phone"):
-                parts.append(f'nwr(area.c){sel}["name"]["{ph}"][!"website"][!"contact:website"][!"brand"][!"brand:wikidata"];')
-                parts.append(f'nwr(area.c){sel}["name"]["{ph}"]["website"~"facebook|instagram|yelp"][!"brand"][!"brand:wikidata"];')
+        if noweb:  # one light statement per kind; "has no real website" is checked in Python below
+            parts.append(f'nwr(area.c){sel}["name"][~"^(phone|contact:phone)$"~"."][!"brand"][!"brand:wikidata"];')
             continue
         parts.append(f'nwr(area.c){sel}["name"]["website"];')
         parts.append(f'nwr(area.c){sel}["name"]["contact:website"];')
-    return f"""[out:json][timeout:180];
+    return f"""[out:json][timeout:300];
 area["ISO3166-2"="{iso}"]->.s;
 area["name"="{city}"]["boundary"="administrative"](area.s)->.c;
 ({''.join(parts)});
