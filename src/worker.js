@@ -1,5 +1,6 @@
 import { renderSite, renderPaused, photoList, wrapBespoke } from './site.js';
 import { sendNext } from './mailer.js';
+import { callList, renderCalls, logCall } from './calls.js';
 import { renderLanding, renderWelcome, renderPanel, renderMsg, renderReserve } from './pages.js';
 
 const APEX = 'webcrafts.page';
@@ -40,7 +41,7 @@ export default {
     }
   },
   async scheduled(ev, env) {
-    if (ev.cron.startsWith('*/30')) return console.log('send:', await sendNext(env, now()));
+    if (ev.cron.startsWith('*/')) return console.log('send:', await sendNext(env, now()));
     // daily: previews that were never claimed are removed 30 days after we emailed them, as the email says
     await env.DB.prepare(`UPDATE sites SET status = 'expired', updated_at = ? WHERE status = 'preview' AND slug != 'demo' AND sent_at IS NOT NULL AND sent_at < ?`)
       .bind(now(), now() - 30 * 86400).run();
@@ -100,6 +101,13 @@ async function apex(req, env, ctx, url) {
   if (p === '/robots.txt') return new Response('User-agent: *\nAllow: /\n');
 
   let m;
+  if ((m = p.match(/^\/llamar\/([A-Za-z0-9]+)(?:\/([a-z0-9-]+))?$/)) && env.CALL_KEY && m[1] === env.CALL_KEY) {
+    if (req.method === 'POST' && m[2]) {
+      await logCall(env, m[2], (await req.formData()).get('r'));
+      return redirect(`${url.origin}/llamar/${m[1]}`);
+    }
+    return html(renderCalls(await callList(env), m[1]), 200, { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' });
+  }
   if ((m = p.match(/^\/claim\/([a-z0-9-]+)$/))) {
     const row = await env.DB.prepare('SELECT * FROM sites WHERE slug = ?').bind(m[1]).first();
     if (!row) return html(renderMsg('Not found', 'That preview does not exist.'), 404);

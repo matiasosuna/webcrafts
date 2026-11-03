@@ -207,17 +207,21 @@ export async function sendNext(env, now) {
     `SELECT * FROM sites s WHERE status = 'preview' AND html IS NOT NULL AND sent_at IS NULL AND email IS NOT NULL AND slug != 'demo'
      AND created_at >= ? AND ${NOT_SUPPRESSED} ORDER BY created_at LIMIT 5`
   ).bind(Number(env.SEND_FROM || 0)).all();
+  // businesses whose current site has a visible problem go first: they have a reason to switch
+  let pick = null;
   for (const row of results) {
     const [local, domain] = row.email.toLowerCase().split('@');
     if (ROLE.test(local)) { await suppress(env, row.email, 'role address', now); continue; }
     if (!(await hasMx(domain))) { await suppress(env, row.email, 'no mail server', now); continue; }
-    // claim it first so a retry never double-sends
-    await env.DB.prepare('UPDATE sites SET sent_at = ? WHERE slug = ?').bind(now, row.slug).run();
     const data = JSON.parse(row.data);
     const site = data.old_site || (FREE.test(domain) ? null : `https://${domain}`);
     const issue = env.TEMPLATE === 'v2' ? await observe(site) : null;
-    const { subject, text } = compose(row, data, env, issue);
-    return deliver(env, row, now, 'sent', subject, text);
+    if (!pick) pick = { row, data, issue };
+    if (issue) { pick = { row, data, issue }; break; }
   }
-  return 'empty';
+  if (!pick) return 'empty';
+  // claim it first so a retry never double-sends
+  await env.DB.prepare('UPDATE sites SET sent_at = ? WHERE slug = ? AND sent_at IS NULL').bind(now, pick.row.slug).run();
+  const { subject, text } = compose(pick.row, pick.data, env, pick.issue);
+  return deliver(env, pick.row, now, 'sent', subject, text);
 }
