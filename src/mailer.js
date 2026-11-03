@@ -17,7 +17,7 @@ export function compose(row, data, env, issue) {
   const name = cleanName(row.name);
   const url = `https://${row.slug}.webcrafts.page`;
   if (data.noweb) {
-    // DRAFT, not approved yet: SEND_ENABLED stays "0" until Matías OKs this text
+    // no-website text: OKed by Matías on 2026-11-03
     return {
       subject: `A website for ${name}`,
       text: `Hi,
