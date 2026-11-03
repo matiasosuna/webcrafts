@@ -3,7 +3,7 @@
 name: Diario
 on:
   schedule:
-    - cron: "0 15 * * *"
+    - cron: "37 14 * * *"  # minuto impar: los crons en punto se atrasan horas en GitHub
   workflow_dispatch:
     inputs:
       n:
