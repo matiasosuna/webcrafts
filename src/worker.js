@@ -212,7 +212,8 @@ async function stripeWebhook(req, env) {
     (o.id && (await env.DB.prepare('SELECT slug FROM sites WHERE stripe_sub = ?').bind(o.id).first())?.slug);
   switch (ev.type) {
     case 'checkout.session.completed':
-      await activate(env, o);
+      // shared Stripe account (Hoops, LoveWorker, Hermes Tarot): ignore checkouts that aren't ours
+      if ((o.client_reference_id || o.metadata?.slug) && !o.metadata?.proyecto) await activate(env, o);
       break;
     case 'invoice.payment_failed': {
       const slug = await slugOf();
