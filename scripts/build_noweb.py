@@ -29,7 +29,18 @@ LABEL = {
 }
 
 
-def label(kind, cuisine):
+FOOD = ("amenity=restaurant", "amenity=fast_food", "amenity=cafe", "shop=coffee", "shop=bakery", "shop=deli")
+BY_NAME = [("barber", "Barbershop"), ("nail", "Nail salon"), ("lash", "Lash studio"), ("brow", "Brow studio"), ("spa", "Spa"),
+           ("tint", "Window tinting"), ("body", None), ("tattoo", "Tattoo studio")]
+
+
+def label(kind, cuisine, name=""):
+    """OSM is coarse (every barber is shop=hairdresser): the name says more."""
+    n = name.lower()
+    if kind in ("shop=hairdresser", "shop=beauty", "shop=car_repair"):
+        for word, lab in BY_NAME:
+            if word in n and lab:
+                return lab
     if kind in ("amenity=restaurant", "amenity=fast_food") and cuisine:
         return cuisine.split(";")[0].replace("_", " ").title() + " restaurant"
     return LABEL.get(kind) or kind.split("=")[-1].replace("_", " ").capitalize()
@@ -68,10 +79,10 @@ def main():
     for l in leads[: a.limit]:
         slug = slugify(l["name"], taken)
         data = {
-            "noweb": True, "osm": l["osm"], "theme": theme_for(l["kind"], l["name"]), "category": label(l["kind"], l.get("cuisine")),
+            "noweb": True, "osm": l["osm"], "theme": theme_for(l["kind"], l["name"]), "category": label(l["kind"], l.get("cuisine"), l["name"]),
             "phone": l["phone"].split(";")[0].strip(), "address": l.get("street"), "city": l.get("city"), "region": l.get("region"),
             "zip": l.get("zip"), "hours": hours_of(l.get("hours")), "email": l.get("email"), "social": l.get("social"),
-            "cuisine": l.get("cuisine"), "description": l.get("description"),
+            "cuisine": l.get("cuisine") if l["kind"] in FOOD else None, "description": l.get("description"),
         }
         stmts.append(
             "INSERT OR IGNORE INTO sites (slug, name, data, status, email, created_at, updated_at) VALUES "
