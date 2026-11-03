@@ -21,44 +21,71 @@ if [ -n "${REDO:-}" ]; then python3 scripts/bespoke.py --redo $REDO 2>>data/run.
 
 INBOX=$(python3 scripts/inbox.py 2>>data/run.log || echo "(no se pudo leer el inbox: falta la clave de Zoho)")
 
-READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT NULL AND sent_at IS NULL AND slug!='demo'")
 BUILT=""
-if [ "$READY" -lt "$MIN_READY" ]; then
-  # cities in cities_done.txt are used up; each run audits at most 2 new cities (about 15 min each)
-  DONE=data/cities_done.txt; touch "$DONE"
-  build() {  # up to N previews from every audited city; a city that gives nothing new is used up
-    for a in data/*.audit.jsonl; do
-      [ -e "$a" ] || continue
-      left=$((N - $(echo $BUILT | wc -w))); [ "$left" -le 0 ] && return
-      out=$(python3 scripts/build_previews.py "$a" --limit "$left" --min-score 3 2>>data/run.log | sed -n 's|^https://\(.*\)\.webcrafts\.page$|\1|p')
-      if [ -z "$out" ]; then basename "${a%.audit.jsonl}" >> "$DONE"; rm -f "$a" "${a%.audit.jsonl}.jsonl"; fi
+if [ "${MODE:-noweb}" = noweb ]; then
+  # the plan: businesses WITHOUT a website (or only Facebook/Instagram/Yelp). Matías calls them from /llamar, so keep
+  # about MIN_READY of them that nobody has called yet. Cities in noweb_done.txt are used up.
+  READY=$(n "SELECT COUNT(*) n FROM sites s WHERE status='preview' AND html IS NOT NULL AND json_extract(data, '\$.noweb') = 1 AND NOT EXISTS (SELECT 1 FROM events e WHERE e.slug = s.slug AND e.type = 'call')")
+  if [ "$READY" -lt "$MIN_READY" ]; then
+    DONE=data/noweb_done.txt; touch "$DONE"; tries=0
+    while [ "$(echo $BUILT | wc -w)" -lt "$N" ] && [ "$tries" -lt 3 ]; do
+      next=""
+      while IFS='|' read -r city iso; do
+        c=$(echo "$city" | tr 'A-Z ' 'a-z-'); grep -qx "$c" "$DONE" || { next="$city|$iso"; break; }
+      done < scripts/cities.txt
+      [ -z "$next" ] && break
+      city=${next%|*}; iso=${next#*|}; c=$(echo "$city" | tr 'A-Z ' 'a-z-'); f="data/noweb-$c.jsonl"
+      tries=$((tries + 1))
+      [ -s "$f" ] || python3 scripts/osm_leads.py "$city" "$iso" "$f" --noweb 2>>data/run.log
+      left=$((N - $(echo $BUILT | wc -w)))
+      out=$(python3 scripts/build_noweb.py "$f" --limit "$left" 2>>data/run.log | sed -n 's|^https://\(.*\)\.webcrafts\.page$|\1|p')
+      if [ -z "$out" ]; then echo "$c" >> "$DONE"; rm -f "$f"; fi
       BUILT="$BUILT $out"
     done
-  }
-  build
-  tries=0
-  while [ "$(echo $BUILT | wc -w)" -lt "$N" ] && [ "$tries" -lt 2 ]; do
-    next=""
-    while IFS='|' read -r city iso; do
-      c=$(echo "$city" | tr 'A-Z ' 'a-z-'); grep -qx "$c" "$DONE" || [ -s "data/$c.audit.jsonl" ] || { next="$city|$iso"; break; }
-    done < scripts/cities.txt
-    [ -z "$next" ] && break
-    city=${next%|*}; iso=${next#*|}; f="data/$(echo "$city" | tr 'A-Z ' 'a-z-').jsonl"; a="${f%.jsonl}.audit.jsonl"
-    tries=$((tries + 1))
-    python3 scripts/osm_leads.py "$city" "$iso" "$f" 2>>data/run.log && python3 scripts/audit.py "$f" "$a" >/dev/null 2>>data/run.log
-    [ -s "$a" ] || { basename "$f" .jsonl >> "$DONE"; continue; }
-    # keep the stored data small: the site text is only needed for businesses we can email
-    python3 - "$a" <<'PY2'
-import json, sys
-p = sys.argv[1]; rows = [json.loads(l) for l in open(p)]
-open(p, "w").writelines(json.dumps(r if r.get("emails") else {k: v for k, v in r.items() if k != "content"}) + "\n" for r in rows)
-PY2
+    BUILT=$(echo $BUILT)
+    [ -n "$BUILT" ] && python3 scripts/bespoke.py $BUILT 2>>data/run.log
+  fi
+else
+  # MODE=web: businesses that already have a website (paused on 3-nov by Matías)
+  READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT NULL AND sent_at IS NULL AND slug!='demo'")
+  BUILT=""
+  if [ "$READY" -lt "$MIN_READY" ]; then
+    # cities in cities_done.txt are used up; each run audits at most 2 new cities (about 15 min each)
+    DONE=data/cities_done.txt; touch "$DONE"
+    build() {  # up to N previews from every audited city; a city that gives nothing new is used up
+      for a in data/*.audit.jsonl; do
+        [ -e "$a" ] || continue
+        left=$((N - $(echo $BUILT | wc -w))); [ "$left" -le 0 ] && return
+        out=$(python3 scripts/build_previews.py "$a" --limit "$left" --min-score 3 2>>data/run.log | sed -n 's|^https://\(.*\)\.webcrafts\.page$|\1|p')
+        if [ -z "$out" ]; then basename "${a%.audit.jsonl}" >> "$DONE"; rm -f "$a" "${a%.audit.jsonl}.jsonl"; fi
+        BUILT="$BUILT $out"
+      done
+    }
     build
-  done
-  BUILT=$(echo $BUILT)
-  if [ -n "$BUILT" ]; then
-    python3 scripts/photos.py $BUILT 2>>data/run.log
-    python3 scripts/bespoke.py $BUILT 2>>data/run.log
+    tries=0
+    while [ "$(echo $BUILT | wc -w)" -lt "$N" ] && [ "$tries" -lt 2 ]; do
+      next=""
+      while IFS='|' read -r city iso; do
+        c=$(echo "$city" | tr 'A-Z ' 'a-z-'); grep -qx "$c" "$DONE" || [ -s "data/$c.audit.jsonl" ] || { next="$city|$iso"; break; }
+      done < scripts/cities.txt
+      [ -z "$next" ] && break
+      city=${next%|*}; iso=${next#*|}; f="data/$(echo "$city" | tr 'A-Z ' 'a-z-').jsonl"; a="${f%.jsonl}.audit.jsonl"
+      tries=$((tries + 1))
+      python3 scripts/osm_leads.py "$city" "$iso" "$f" 2>>data/run.log && python3 scripts/audit.py "$f" "$a" >/dev/null 2>>data/run.log
+      [ -s "$a" ] || { basename "$f" .jsonl >> "$DONE"; continue; }
+      # keep the stored data small: the site text is only needed for businesses we can email
+      python3 - "$a" <<'PY2'
+  import json, sys
+  p = sys.argv[1]; rows = [json.loads(l) for l in open(p)]
+  open(p, "w").writelines(json.dumps(r if r.get("emails") else {k: v for k, v in r.items() if k != "content"}) + "\n" for r in rows)
+PY2
+      build
+    done
+    BUILT=$(echo $BUILT)
+    if [ -n "$BUILT" ]; then
+      python3 scripts/photos.py $BUILT 2>>data/run.log
+      python3 scripts/bespoke.py $BUILT 2>>data/run.log
+    fi
   fi
 fi
 

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Pull local businesses that list a website from OpenStreetMap (free) for one city.
-Usage: osm_leads.py "Austin" "US-TX" out.jsonl
+"""Pull local businesses from OpenStreetMap (free) for one city.
+Usage: osm_leads.py "Austin" "US-TX" out.jsonl            businesses that list a website
+       osm_leads.py "Austin" "US-TX" out.jsonl --noweb    businesses with a phone and NO website (or only Facebook/Instagram/Yelp),
+                                                          chains left out: this is who the product is for, reached by phone
 """
 import json, sys, time, urllib.request, urllib.parse
 
@@ -23,10 +25,18 @@ KEEP = {
 }
 
 
-def query(city, iso):
+SOCIAL = ("facebook.com", "instagram.com", "yelp.com")
+
+
+def query(city, iso, noweb=False):
     parts = []
     for k, vals in KEEP.items():
         sel = f'["{k}"]' if vals is None else f'["{k}"~"^({"|".join(sorted(vals))})$"]'
+        if noweb:
+            for ph in ("phone", "contact:phone"):
+                parts.append(f'nwr(area.c){sel}["name"]["{ph}"][!"website"][!"contact:website"][!"brand"][!"brand:wikidata"];')
+                parts.append(f'nwr(area.c){sel}["name"]["{ph}"]["website"~"facebook|instagram|yelp"][!"brand"][!"brand:wikidata"];')
+            continue
         parts.append(f'nwr(area.c){sel}["name"]["website"];')
         parts.append(f'nwr(area.c){sel}["name"]["contact:website"];')
     return f"""[out:json][timeout:180];
@@ -54,13 +64,20 @@ def run(q):
 
 def main():
     city, iso, out = sys.argv[1], sys.argv[2], sys.argv[3]
-    els = run(query(city, iso))
-    n = 0
+    noweb = "--noweb" in sys.argv
+    els = run(query(city, iso, noweb))
+    n, seen = 0, set()
     with open(out, "w") as f:
         for e in els:
             t = e.get("tags", {})
             site = t.get("website") or t.get("contact:website")
-            if not site or any(x in site for x in ("facebook.com", "instagram.com", "yelp.com")):
+            social = bool(site) and any(x in site for x in SOCIAL)
+            if noweb:
+                key = (t["name"].lower(), t.get("phone") or t.get("contact:phone"))
+                if key in seen or (site and not social):
+                    continue
+                seen.add(key)
+            elif not site or social:
                 continue
             kind = next((f"{k}={t[k]}" for k in KEEP if k in t), "")
             f.write(json.dumps({
@@ -68,9 +85,11 @@ def main():
                 "phone": t.get("phone") or t.get("contact:phone"), "email": t.get("email") or t.get("contact:email"),
                 "street": " ".join(x for x in (t.get("addr:housenumber"), t.get("addr:street")) if x) or None,
                 "city": t.get("addr:city") or city, "region": iso.split("-")[1], "hours": t.get("opening_hours"),
+                **({"noweb": True, "social": site, "cuisine": t.get("cuisine"), "description": t.get("description"),
+                    "zip": t.get("addr:postcode")} if noweb else {}),
             }) + "\n")
             n += 1
-    print(f"{city}: {n} businesses with website", file=sys.stderr)
+    print(f"{city}: {n} businesses {'without' if noweb else 'with'} website", file=sys.stderr)
 
 
 if __name__ == "__main__":

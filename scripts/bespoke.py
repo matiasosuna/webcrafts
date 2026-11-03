@@ -77,6 +77,14 @@ FONTS = [
 ]
 
 
+NOWEB = """(none: {name} has NO website yet, this page would be their first one)
+All we know is their public listing: {facts}
+Write short, honest, general copy: what kind of place it is and where. For services or the offer, list only the most basic things
+every {category} offers, phrased generally (a barber: haircuts, beard trims), never specific items, prices, brands, years or claims,
+and no story about the owner. There are no photos: make it striking with typography, colour and simple inline SVG that suit a {category}.
+"""
+
+
 def d1(sql_or_file, file=False):
     args = ["npx", "-y", "wrangler@3", "d1", "execute", "webcrafts", "--remote", "--json"]
     args += ["--file", sql_or_file] if file else ["--command", sql_or_file]
@@ -228,7 +236,8 @@ def main():
     slugs = [a for a in sys.argv[1:] if not a.startswith("--")]
     rows = d1("SELECT slug, name, data, html IS NOT NULL AS done FROM sites WHERE status = 'preview' AND slug != 'demo'")
     rows = [r for r in rows if (not slugs or r["slug"] in slugs) and (redo or slugs or not r["done"])]
-    osm = {json.loads(l)["slug"]: json.loads(l)["osm"] for l in open(ROOT / "data/previews.jsonl")}
+    pv = ROOT / "data/previews.jsonl"
+    osm = {json.loads(l)["slug"]: json.loads(l)["osm"] for l in open(pv)} if pv.exists() else {}
     content, k, ok = audit_content(), key(), 0
     layouts = LAYOUTS[:]
     random.shuffle(layouts)  # no two pages in one run share a structure
@@ -237,13 +246,17 @@ def main():
         c = content.get(osm.get(r["slug"]), {})
         photos = (d.get("photos") or ([d["image"]] if d.get("image") else []))[:8]
         plist = "\n".join(f"  /_p/{i}   (original file name: {p.rsplit('/', 1)[-1][:80]})" for i, p in enumerate(photos)) or "  (none: design without photos, use colour, type and SVG)"
-        text = "\n".join([c.get("title", ""), c.get("description", ""), *c.get("h", []), *c.get("p", []), "Items: " + "; ".join(c.get("li", []))])[:9000]
-        text += "\n\nSummary we already wrote: " + json.dumps({k2: d.get(k2) for k2 in ("tagline", "services", "about", "contact_line")})
+        if d.get("noweb"):
+            facts = {k2: d[k2] for k2 in ("category", "cuisine", "description", "hours", "social") if d.get(k2)}
+            text = NOWEB.format(name=r["name"], facts=json.dumps(facts), category=d.get("category") or "local business")
+        else:
+            text = "\n".join([c.get("title", ""), c.get("description", ""), *c.get("h", []), *c.get("p", []), "Items: " + "; ".join(c.get("li", []))])[:9000]
+            text += "\n\nSummary we already wrote: " + json.dumps({k2: d.get(k2) for k2 in ("tagline", "services", "about", "contact_line")})
         tel = "tel:" + re.sub(r"[^\d+]", "", d.get("phone") or "")
         maps = "https://www.google.com/maps/search/?api=1&query=" + urllib.request.quote(", ".join(x for x in (r["name"], d.get("address"), d.get("city"), d.get("region")) if x))
         fonts = ", ".join(random.sample(FONTS, 8))
         prompt = PROMPT.format(layout=layouts[i % len(layouts)], fonts=fonts, photos=plist, maps=maps, tel=tel, name=r["name"], category=d.get("category"), address=d.get("address") or "",
-                               city=d.get("city"), region=d.get("region"), phone=d.get("phone"), email=d.get("email"),
+                               city=d.get("city"), region=d.get("region"), phone=d.get("phone"), email=d.get("email") or "(none)",
                                hours=json.dumps(d.get("hours") or []), areas=", ".join(d.get("areas") or []), text=text)
         print(f"→ {r['slug']}", file=sys.stderr)
         h = design(k, prompt, photos)

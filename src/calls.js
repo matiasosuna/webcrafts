@@ -34,7 +34,8 @@ export async function callList(env) {
      FROM sites s
      WHERE s.status = 'preview' AND s.slug != 'demo' AND s.html IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM suppress x WHERE x.email = lower(s.email) AND x.why IN ('opt-out', 'replied'))
-     ORDER BY seen DESC, s.sent_at IS NULL, s.sent_at DESC LIMIT 150`
+       AND (json_extract(s.data, '$.noweb') = 1 OR EXISTS (SELECT 1 FROM events e WHERE e.slug = s.slug AND e.type = 'human_view'))
+     ORDER BY seen DESC, s.created_at DESC LIMIT 150`
   ).all();
   const now = Math.floor(Date.now() / 1000);
   const rows = [];
@@ -46,7 +47,7 @@ export async function callList(env) {
     const t = localTime(tzOf(d.region));
     rows.push({ ...r, d, t });
   }
-  // the ones you can call right now go first; inside each group the order above stays (seen > emailed recently > rest)
+  // businesses without a website (the plan) plus anyone who already looked at their preview; callable right now first
   rows.sort((a, b) => Number(b.t.good) - Number(a.t.good));
   return rows.slice(0, 20);
 }
@@ -55,16 +56,20 @@ export function renderCalls(rows, key) {
   const cards = rows.map((r) => {
     const url = `https://${r.slug}.webcrafts.page`;
     const tel = '+' + digits(r.d.phone);
-    const sms = `Hi, this is Matias from WebCrafts. Here's the new version of your website I made: ${url} Anything on it can change. Just reply here.`;
+    const name = r.name.split(';')[0];
+    const sms = r.d.noweb
+      ? `Hi, this is Matias from WebCrafts. I couldn't find a website for ${name}, so I made one: ${url} Anything on it can change. Just reply here.`
+      : `Hi, this is Matias from WebCrafts. Here's the new version of your website I made: ${url} Anything on it can change. Just reply here.`;
     const tags = [
       r.seen ? '<b class="hot">abrió su web</b>' : '',
-      r.sent_at ? `mail ${Math.max(0, Math.round((Date.now() / 1000 - r.sent_at) / 86400))} días atrás` : 'sin mail',
+      r.d.noweb ? (r.d.social ? 'solo tiene redes' : 'sin web') : 'tiene web',
+      r.sent_at ? `mail ${Math.max(0, Math.round((Date.now() / 1000 - r.sent_at) / 86400))} días atrás` : '',
       r.last_call ? `antes: ${esc(RESULTS[r.last_call] || r.last_call)}` : '',
     ].filter(Boolean).join(' · ');
     const hours = (r.d.hours || []).map((h) => esc(h.join(' '))).join('<br>');
     const btn = (k, l) => `<button name="r" value="${k}">${l}</button>`;
     return `<section class="${r.t.good ? '' : 'later'}">
-<h2>${esc(r.name.split(';')[0])}</h2>
+<h2>${esc(name)}</h2>
 <p class="meta">${esc(r.d.category || '')} · ${esc(r.d.city || '')}, ${esc(r.d.region || '')} · allá son las <b>${r.t.label}</b>${r.t.good ? '' : ' (fuera de horario)'}</p>
 <p class="meta">${tags}</p>
 ${hours ? `<p class="hours">${hours}</p>` : ''}
@@ -103,8 +108,9 @@ h2{font-size:19px;margin:0 0 4px}
 <h1>Para llamar (${rows.length})</h1>
 <details><summary>Qué decir</summary>
 <p><i>"Hi, is this the owner? This is Matias from WebCrafts."</i></p>
-<p><i>"I made a new version of your website, using what's already on it."</i> Si dice "mail X días atrás": <i>"I sent it to you by email. Did you get a chance to see it?"</i></p>
-<p><i>"Anything on it can change. If you like it, it's $49 a month, hosting and changes included. No contract."</i></p>
+<p><b>Sin web:</b> <i>"I couldn't find a website for your business, so I made one for you, with your address, hours and phone. It's already online."</i></p>
+<p><b>Tiene web:</b> <i>"I made a new version of your website and emailed it to you. Did you get a chance to see it?"</i></p>
+<p><i>"Anything on it can change: photos, text, colors. If you like it, it's $49 a month, hosting and changes included. No contract."</i></p>
 <p><i>"Can I text you the link?"</i> → botón WhatsApp o SMS.</p>
 <p>Si no está el dueño: <i>"When is a good time to reach the owner?"</i> → "Otro día".</p>
 </details>

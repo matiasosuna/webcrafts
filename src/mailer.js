@@ -16,6 +16,27 @@ const poss = (n) => (/s$/i.test(n) ? `${n}'` : `${n}'s`);
 export function compose(row, data, env, issue) {
   const name = cleanName(row.name);
   const url = `https://${row.slug}.webcrafts.page`;
+  if (data.noweb) {
+    // DRAFT, not approved yet: SEND_ENABLED stays "0" until Matías OKs this text
+    return {
+      subject: `A website for ${name}`,
+      text: `Hi,
+
+I couldn't find a website for ${name}, so I made one, using what's public about you (address, hours, phone):
+
+${url}
+
+Anything can change: photos, text, colors. If you like it, I can keep it online for you for $49/month, hosting and changes included. Just reply.
+
+Matias
+webcrafts.page
+
+--
+${env.POSTAL_ADDRESS}
+Reply "no" and I won't write again.
+`,
+    };
+  }
   if (env.TEMPLATE === 'v2') {
     const opening = issue
       ? `I was looking at ${poss(name)} website and noticed ${issue}. So I made a new version that works well on phones, using what's already on your site:`
@@ -177,6 +198,8 @@ async function deliver(env, row, now, type, subject, text, inReplyTo) {
   }
 }
 
+// the plan is businesses WITHOUT a website (Matías, 3-nov): the ones that have one are not emailed anymore
+const NOWEB = `json_extract(s.data, '$.noweb') = 1`;
 const NOT_SUPPRESSED = `NOT EXISTS (SELECT 1 FROM suppress x WHERE x.email = lower(s.email) OR x.email = lower(substr(s.email, instr(s.email, '@') + 1)))`;
 
 // called from the cron: sends at most one email per run (a due follow-up first), at most SEND_MAX per day
@@ -191,7 +214,7 @@ export async function sendNext(env, now) {
     // one nudge, 4+ days after the first email, only if they haven't replied (replies and opt-outs land in suppress)
     const f = await env.DB.prepare(
       `SELECT s.*, e.detail FROM sites s JOIN events e ON e.slug = s.slug AND e.type = 'sent'
-       WHERE s.status = 'preview' AND s.sent_at IS NOT NULL AND s.sent_at < ? AND s.sent_at > ? AND ${NOT_SUPPRESSED}
+       WHERE s.status = 'preview' AND s.sent_at IS NOT NULL AND s.sent_at < ? AND s.sent_at > ? AND ${NOT_SUPPRESSED} AND ${NOWEB}
        AND NOT EXISTS (SELECT 1 FROM events y WHERE y.slug = s.slug AND y.type IN ('followup', 'claim_click', 'reserve', 'activated'))
        ORDER BY s.sent_at LIMIT 1`
     ).bind(now - 4 * 86400, now - 20 * 86400).first();
@@ -205,7 +228,7 @@ export async function sendNext(env, now) {
   // SEND_FROM (unix time) skips older batches whose sends were logged only on the Mac
   const { results } = await env.DB.prepare(
     `SELECT * FROM sites s WHERE status = 'preview' AND html IS NOT NULL AND sent_at IS NULL AND email IS NOT NULL AND slug != 'demo'
-     AND created_at >= ? AND ${NOT_SUPPRESSED} ORDER BY created_at LIMIT 5`
+     AND created_at >= ? AND ${NOT_SUPPRESSED} AND ${NOWEB} ORDER BY created_at LIMIT 5`
   ).bind(Number(env.SEND_FROM || 0)).all();
   // businesses whose current site has a visible problem go first: they have a reason to switch
   let pick = null;
