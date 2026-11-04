@@ -109,10 +109,11 @@ READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT N
 } > data/report.md
 echo "listo: $NEWB webs nuevas, $SENT mails enviados, $READY listas"  # only counts in the public log
 # the report goes by email to Matías only when something happened that he should look at
-if [ -n "$SALES" ] || echo "$INBOX" | grep -q "\*\*" || [ -n "$FAILS" ]; then
+# (auto-replies, opt-outs and bounces alone don't send it: only people answering, buy clicks and failed sends)
+if [ -n "$SALES" ] || echo "$INBOX" | grep -q "\*\*Respondió\*\*" || [ -n "$FAILS" ]; then
   title="WebCrafts $(date +%d-%m):"
   [ -n "$SALES" ] && title="$title clicks en comprar"
-  echo "$INBOX" | grep -q "REPLY" && title="$title respuestas"
+  echo "$INBOX" | grep -q "\*\*Respondió\*\*" && title="$title respuestas"
   [ -n "$FAILS" ] && title="$title envíos fallados"
   python3 scripts/report_mail.py "$title" data/report.md 2>>data/run.log || echo "no se pudo mandar el reporte"
 fi

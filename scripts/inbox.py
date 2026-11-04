@@ -13,6 +13,19 @@ ROOT = Path(__file__).resolve().parent.parent
 SEEN = ROOT / "data/inbox_seen.json"
 OPTOUT = re.compile(r"^\s*(no|nope|no thanks|not interested|stop|unsubscribe|remove( me)?)\b", re.I)
 BOUNCE = re.compile(r"mailer-daemon|postmaster", re.I)
+# "We've got your message!", out-of-office, "Thanks for contacting us"…: a machine answered, not a person
+AUTO = re.compile(r"auto(matic|matische)?[ -]?(reply|response|antwort)|out of (the )?office|away from|on vacation|"
+                  r"(we('ve| have)|i('ve| have)) (got|received) your (message|e-?mail|inquiry)|thanks? (you )?for (contacting|reaching out|your (message|e-?mail|inquiry))|"
+                  r"message received|this is an automated", re.I)
+KIND = {"REPLY": "Respondió", "AUTO": "Respuesta automática", "OPT-OUT": "Baja", "BOUNCE": "Rebote"}
+
+
+def is_auto(m, subj, first):
+    if (m.get("Auto-Submitted") or "no").strip().lower() != "no" or m.get("X-Autoreply") or m.get("X-Autorespond"):
+        return True
+    if (m.get("Precedence") or "").strip().lower() in ("auto_reply", "bulk", "junk"):
+        return True
+    return bool(AUTO.search(subj) or AUTO.search(first))
 
 
 def env():
@@ -94,6 +107,8 @@ def main():
         elif OPTOUT.search(first) or "unsubscribe" in subj.lower():
             supp.append((frm, "opt-out"))
             kind = "OPT-OUT"
+        elif is_auto(m, subj, first):
+            kind = "AUTO"  # not suppressed: the follow-up still goes
         else:
             kind = "REPLY"
             supp.append((frm, "replied"))  # no follow-up once they answered: Matías takes it from here
@@ -103,8 +118,9 @@ def main():
         d1(f"INSERT OR IGNORE INTO suppress (email, why, created_at) VALUES ({q(addr)}, {q(why)}, {int(time.time())})")
     SEEN.parent.mkdir(exist_ok=True)
     SEEN.write_text(json.dumps(sorted(seen)))
-    for k, frm, subj, first in new:
-        print(f"- **{k}** {frm} — {subj} — {first}")
+    order = {"REPLY": 0, "OPT-OUT": 1, "AUTO": 2, "BOUNCE": 3}
+    for k, frm, subj, first in sorted(new, key=lambda x: order[x[0]]):
+        print(f"- **{KIND[k]}** {frm} — {subj} — {first}")
     print(f"{len(new)} new emails", file=sys.stderr)
 
 
