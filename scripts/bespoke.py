@@ -266,7 +266,8 @@ def main():
             if not CLAUDE["live"] and not [m for m in MODELS if m not in DEAD]:
                 break
             continue
-        h = factcheck(k, h, prompt.split('BUSINESS', 1)[1])  # contact details + their site text
+        # no-website pages only say generic things; the checker kept deleting them (even "Get directions")
+        h = h if d.get("noweb") else factcheck(k, h, prompt.split('BUSINESS', 1)[1])  # contact details + their site text
         if not h:
             print("  skipped (fact-check failed)", file=sys.stderr)
             continue
