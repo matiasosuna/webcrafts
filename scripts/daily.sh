@@ -17,7 +17,10 @@ d1() { npx -y wrangler@3 d1 execute webcrafts --remote --json --command "$1" 2>/
 n() { d1 "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["n"])'; }
 
 # manual run with REDO="slug slug": only redesign those pages
-if [ -n "${REDO:-}" ]; then python3 scripts/bespoke.py --redo $REDO 2>>data/run.log; echo "rehechas: $(echo $REDO | wc -w)"; exit 0; fi
+# every new page is opened at phone-to-monitor widths; text cut off at the edge gets repaired before anyone sees it
+layout() { python3 scripts/check_layout.py --fix "$@" >data/layout.json 2>>data/run.log || echo "webs que siguen con texto cortado: $(python3 -c 'import json; print(len(json.load(open("data/layout.json"))["broken"]))' 2>/dev/null)"; }
+
+if [ -n "${REDO:-}" ]; then python3 scripts/bespoke.py --redo $REDO 2>>data/run.log; layout $REDO; echo "rehechas: $(echo $REDO | wc -w)"; exit 0; fi
 
 INBOX=$(python3 scripts/inbox.py 2>>data/run.log || echo "(no se pudo leer el inbox: falta la clave de Zoho)")
 
@@ -43,7 +46,7 @@ if [ "${MODE:-noweb}" = noweb ]; then
       BUILT="$BUILT $out"
     done
     BUILT=$(echo $BUILT)
-    [ -n "$BUILT" ] && python3 scripts/bespoke.py $BUILT 2>>data/run.log
+    [ -n "$BUILT" ] && python3 scripts/bespoke.py $BUILT 2>>data/run.log && layout $BUILT
   fi
 else
   # MODE=web: businesses that already have a website (paused on 3-nov by Matías)
@@ -85,6 +88,7 @@ PY2
     if [ -n "$BUILT" ]; then
       python3 scripts/photos.py $BUILT 2>>data/run.log
       python3 scripts/bespoke.py $BUILT 2>>data/run.log
+      layout $BUILT
     fi
   fi
 fi

@@ -36,6 +36,8 @@ HARD RULES
   address with a Google Maps link ({maps}), phone as a tel: link ({tel}), email (if given) shown as text.
 - Text placed on a photo must sit on a solid or strongly darkened panel so every word is easy to read (no coloured text straight on a busy photo).
 - Mobile-first and responsive (looks great at 375px and 1280px), good contrast, big tap targets, a sticky or repeated "Call" action on mobile.
+- Every word must stay on screen at every width from 320px to 2560px: size big display type with clamp() and vw, never a fixed px
+  font size that can be wider than its column (not even inside a media query for wide screens). A browser checks this before it goes out.
 - Never put display:grid or display:flex on <html> or <body>: build the layout inside a wrapper element (a bar is added at the very top of <body> later).
 - Do NOT add any "preview", pricing, "buy", "WebCrafts" or footer credit; that is added later. Keep it under 45 KB.
 Return only the HTML.

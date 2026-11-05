@@ -1,0 +1,33 @@
+# Abre cada web a medida en 6 anchos (celular a monitor grande) y arregla con Claude las que tengan texto cortado.
+# El log es público: solo muestra slugs y qué texto se corta (todo eso ya es público en la web).
+name: Revisar webs
+on:
+  workflow_dispatch:
+    inputs:
+      slugs:
+        description: "Qué webs revisar (slugs separados por espacio; vacío = todas las de negocios sin web)"
+        default: ""
+      arreglar:
+        description: "Arreglar las rotas con Claude"
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency: revisar
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q pillow playwright && python -m playwright install --with-deps chromium
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: mkdir -p data && python3 scripts/check_layout.py ${{ inputs.arreglar && '--fix' || '' }} ${{ inputs.slugs }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
