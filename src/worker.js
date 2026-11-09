@@ -1,5 +1,6 @@
 import { renderSite, renderPaused, photoList, wrapBespoke } from './site.js';
-import { sendNext } from './mailer.js';
+import { sendNext, sendOutbox } from './mailer.js';
+import { receive } from './inbox.js';
 import { callList, renderCalls, logCall } from './calls.js';
 import { renderLanding, renderWelcome, renderPanel, renderMsg, renderReserve } from './pages.js';
 
@@ -40,7 +41,13 @@ export default {
       return html(renderMsg('Something went wrong', 'Please try again in a minute.'), 500);
     }
   },
+  // mail to anything@webcrafts.page (Cloudflare Email Routing): logged and forwarded to Matías, see inbox.js
+  async email(message, env) {
+    await receive(message, env, now());
+  },
   async scheduled(ev, env) {
+    const report = await sendOutbox(env, now()).catch((e) => `report error: ${e.message}`);
+    if (report) console.log(report);
     if (ev.cron.startsWith('*/')) return console.log('send:', await sendNext(env, now()));
     // daily: previews that were never claimed are removed 30 days after we emailed them, as the email says
     await env.DB.prepare(`UPDATE sites SET status = 'expired', updated_at = ? WHERE status = 'preview' AND slug != 'demo' AND sent_at IS NOT NULL AND sent_at < ?`)

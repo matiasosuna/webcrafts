@@ -38,5 +38,3 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: 632d122307cbf5e90a58f597c9c2157d
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          ZOHO_SMTP_USER: matias@webcrafts.page
-          ZOHO_SMTP_PASS: ${{ secrets.ZOHO_SMTP_PASS }}

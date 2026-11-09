@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Daily run in GitHub Actions (public repo: free minutes, so logs must never show leads, emails or replies).
 # Private data (leads, audits, inbox state) lives in Cloudflare KV, not in the repo. The Worker cron does the emailing.
-# 1) inbox: replies, opt-outs, bounces, and who was already emailed  2) if few previews are left to send: next city's leads
-# 3) up to N new previews, each with its own photos and a page designed just for that business  4) report (GitHub issue)
+# 1) if few previews are left to send: next city's leads
+# 2) up to N new previews, each with its own photos and a page designed just for that business  3) report (emailed by the Worker)
+# Incoming mail (replies, opt-outs, bounces) is handled by the Worker as it arrives (src/inbox.js); here it only goes in the report.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 N=${N:-20}; MIN_READY=${MIN_READY:-40}
@@ -21,8 +22,6 @@ n() { d1 "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["n"])
 layout() { python3 scripts/check_layout.py --fix "$@" >data/layout.json 2>>data/run.log || echo "webs que siguen con texto cortado: $(python3 -c 'import json; print(len(json.load(open("data/layout.json"))["broken"]))' 2>/dev/null)"; }
 
 if [ -n "${REDO:-}" ]; then python3 scripts/bespoke.py --redo $REDO 2>>data/run.log; layout $REDO; echo "rehechas: $(echo $REDO | wc -w)"; exit 0; fi
-
-INBOX=$(python3 scripts/inbox.py 2>>data/run.log || echo "(no se pudo leer el inbox: falta la clave de Zoho)")
 
 BUILT=""
 if [ "${MODE:-noweb}" = noweb ]; then
@@ -99,7 +98,10 @@ ev() { d1 "SELECT slug, type, detail FROM events WHERE created_at >= $SINCE AND 
   python3 -c 'import json,sys; [print(f"- {r["slug"]}: {r["type"]} · {(r["detail"] or "")[:90]}") for r in json.load(sys.stdin)]'; }
 SALES=$(ev "'activated','reserve','claim_click'")
 SEEN=$(ev "'human_view'")
-FAILS=$(ev "'send_fail'")
+FAILS=$(ev "'send_fail','forward_fail'")
+# mail received in the last 24 h (the Worker already forwarded each one to Matías's Gmail): people first
+INBOX=$(d1 "SELECT detail FROM events WHERE type = 'mail_in' AND created_at >= $SINCE ORDER BY CASE WHEN detail LIKE 'Respondió%' THEN 0 WHEN detail LIKE 'Baja%' THEN 1 WHEN detail LIKE 'Respuesta%' THEN 2 ELSE 3 END, created_at" |
+  python3 -c 'import json,sys; [print("- **" + r["detail"].replace(" · ", "** ", 1)) for r in json.load(sys.stdin)]')
 SENT=$(n "SELECT COUNT(*) n FROM events WHERE type='sent' AND created_at >= $SINCE")
 NEWB=$(echo $BUILT | wc -w | tr -d ' ')
 READY=$(n "SELECT COUNT(*) n FROM sites WHERE status='preview' AND html IS NOT NULL AND sent_at IS NULL AND slug!='demo'")

@@ -29,3 +29,5 @@ ALTER TABLE sites ADD COLUMN html TEXT;
 -- 2026-10-29: sending moved from the Mac to the Worker cron (src/mailer.js)
 ALTER TABLE sites ADD COLUMN sent_at INTEGER;
 CREATE TABLE IF NOT EXISTS suppress (email TEXT PRIMARY KEY, why TEXT, created_at INTEGER NOT NULL); -- address or whole domain
+-- 2026-11-08: Zoho replaced by Cloudflare Email Service; the daily report waits here until the Worker cron emails it
+CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT NOT NULL, text TEXT NOT NULL, html TEXT, created_at INTEGER NOT NULL, sent_at INTEGER);

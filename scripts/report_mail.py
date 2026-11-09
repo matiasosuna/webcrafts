@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Email the daily report to Matías (from matias@webcrafts.page via Zoho). Usage: report_mail.py "subject" report.md
-The report is simple markdown (bold, ### headings, - lists): it goes as HTML for the phone, with a clean plain-text copy."""
-import html, os, re, smtplib, ssl, sys
-from email.message import EmailMessage
+"""Queue the daily report for Matías. Usage: report_mail.py "subject" report.md
+It goes into the D1 outbox; the Worker emails it from matias@webcrafts.page (Cloudflare Email Service) on its next
+cron run (every 20 min in US hours), only to Matías. The report is simple markdown (bold, ### headings, - lists):
+it goes as HTML for the phone, with a clean plain-text copy."""
+import html, re, subprocess, sys, time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def to_html(md):
@@ -34,13 +38,10 @@ def to_text(md):
     return re.sub(r"(?m)^### ", "", t)
 
 
+q = lambda s: "'" + s.replace("'", "''") + "'"
 md = open(sys.argv[2]).read()
-m = EmailMessage()
-m["From"] = f"WebCrafts bot <{os.environ['ZOHO_SMTP_USER']}>"
-m["To"] = os.environ.get("REPORT_TO", "osuna.devs@gmail.com")
-m["Subject"] = sys.argv[1]
-m.set_content(to_text(md))
-m.add_alternative(to_html(md), subtype="html")
-with smtplib.SMTP_SSL("smtppro.zoho.com", 465, context=ssl.create_default_context(), timeout=30) as s:
-    s.login(os.environ["ZOHO_SMTP_USER"], os.environ["ZOHO_SMTP_PASS"])
-    s.send_message(m)
+f = ROOT / "data/.outbox.sql"
+f.parent.mkdir(exist_ok=True)
+f.write_text(f"INSERT INTO outbox (subject, text, html, created_at) VALUES ({q(sys.argv[1])}, {q(to_text(md))}, {q(to_html(md))}, {int(time.time())});")
+subprocess.run(["npx", "-y", "wrangler@3", "d1", "execute", "webcrafts", "--remote", "--json", "--file", str(f)], cwd=ROOT, capture_output=True, check=True)
+f.unlink()

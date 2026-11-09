@@ -1,11 +1,9 @@
 // Cold-email sender that runs on the Worker cron (replaces send.py, which ran on the Mac).
-// One email per cron tick (every 30 min in US business hours) so sends are naturally spread out.
-// Off unless SEND_ENABLED = "1". Needs secrets ZOHO_SMTP_USER, ZOHO_SMTP_PASS (Zoho app password) and POSTAL_ADDRESS (CAN-SPAM).
-import { connect } from 'cloudflare:sockets';
+// One email per cron tick (every 20 min in US business hours) so sends are naturally spread out.
+// Off unless SEND_ENABLED = "1". Sends through Cloudflare Email Service (binding EMAIL, from matias@webcrafts.page);
+// needs the secret POSTAL_ADDRESS (CAN-SPAM). Zoho (SMTP) was dropped on 2026-11-08.
 
-const enc = new TextEncoder();
-const b64 = (s) => { const b = enc.encode(s); let o = ''; for (const x of b) o += String.fromCharCode(x); return btoa(o); };
-const hdr = (s) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
+export const FROM = 'matias@webcrafts.page';
 
 // v1: text Matías approved on 2026-10-29. v2 and the follow-up: approved on 2026-11-02, switched on in wrangler.toml
 // (TEMPLATE = "v2", FOLLOWUP_ENABLED = "1").
@@ -117,51 +115,19 @@ export async function observe(url) {
   return null;
 }
 
-export async function smtpSend(env, to, subject, text, inReplyTo) {
-  const user = env.ZOHO_SMTP_USER;
-  const sock = connect({ hostname: env.ZOHO_SMTP_HOST || 'smtppro.zoho.com', port: 465 }, { secureTransport: 'on' });
-  const w = sock.writable.getWriter();
-  const r = sock.readable.getReader();
-  const dec = new TextDecoder();
-  let buf = '';
-  const reply = async () => {
-    for (;;) {
-      const lines = buf.split('\r\n');
-      for (let i = 0; i < lines.length - 1; i++)
-        if (/^\d{3} /.test(lines[i])) { buf = lines.slice(i + 1).join('\r\n'); return { code: +lines[i].slice(0, 3), text: lines[i] }; }
-      const { value, done } = await r.read();
-      if (done) throw new Error('smtp closed');
-      buf += dec.decode(value, { stream: true });
-    }
-  };
-  const cmd = async (line, ok) => {
-    if (line != null) await w.write(enc.encode(line + '\r\n'));
-    const res = await reply();
-    if (!ok.includes(res.code)) throw new Error(`smtp ${(line || 'greeting').split(' ')[0]}: ${res.text}`);
-  };
-  const id = `<${crypto.randomUUID()}@webcrafts.page>`;
-  const body = b64(text).replace(/.{1,76}/g, '$&\r\n');
-  const msg = [
-    `From: Matias at WebCrafts <${user}>`, `To: ${to}`, `Subject: ${hdr(subject)}`, `Date: ${new Date().toUTCString()}`, `Message-ID: ${id}`,
-    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),
-    'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', body,
-  ].join('\r\n');
-  try {
-    await cmd(null, [220]);
-    await cmd('EHLO webcrafts.page', [250]);
-    await cmd('AUTH LOGIN', [334]);
-    await cmd(b64(user), [334]);
-    await cmd(b64(env.ZOHO_SMTP_PASS), [235]);
-    await cmd(`MAIL FROM:<${user}>`, [250]);
-    await cmd(`RCPT TO:<${to}>`, [250, 251]);
-    await cmd('DATA', [354]);
-    await cmd(msg + '\r\n.', [250]);
-    await cmd('QUIT', [221]).catch(() => {});
-  } finally {
-    await sock.close().catch(() => {});
-  }
-  return id;
+// Cloudflare Email Service. The Message-ID is set by Cloudflare; its id comes back for threading the follow-up.
+// List-Unsubscribe gives mail apps an "unsubscribe" button: it writes to us with subject "unsubscribe" (an opt-out, see inbox.js).
+export async function mail(env, to, subject, text, inReplyTo) {
+  const headers = { 'List-Unsubscribe': `<mailto:${FROM}?subject=unsubscribe>` };
+  if (inReplyTo) Object.assign(headers, { 'In-Reply-To': inReplyTo, References: inReplyTo });
+  const r = await env.EMAIL.send({ from: { email: FROM, name: 'Matias at WebCrafts' }, to, subject, text, headers });
+  return r.messageId;
 }
+
+// The account's reputation comes first: one bad address is dropped for good, anything else pauses sending
+// (6 h, or until tomorrow when the daily quota is used up) instead of retrying every 20 minutes.
+const BAD_RCPT = /E_RECIPIENT_SUPPRESSED|E_RECIPIENT_NOT_ALLOWED|E_DELIVERY_FAILED/;
+const errCode = (e) => e?.code || (String(e?.message || e).match(/E_[A-Z_]+/) || ['error'])[0];
 
 // Addresses nobody reads for this (press, jobs, billing...) and domains with no mail server are skipped for good.
 const ROLE = /^(press|media|pr|news|jobs|careers|career|hr|recruiting|employment|billing|invoices?|accounting|ap|ar|noreply|no-reply|donotreply|do-not-reply|abuse|privacy|legal|webmaster|security|postmaster)$/i;
@@ -184,15 +150,19 @@ const suppress = (env, email, why, now) =>
 
 async function deliver(env, row, now, type, subject, text, inReplyTo) {
   try {
-    const id = await smtpSend(env, row.email, subject, text, inReplyTo);
+    const id = await mail(env, row.email, subject, text, inReplyTo);
     await env.DB.prepare('INSERT INTO events (slug, type, detail, created_at) VALUES (?, ?, ?, ?)').bind(row.slug, type, `${row.email} ${id} ${subject}`, now).run();
     return `${type} ${row.slug}`;
   } catch (e) {
+    const code = errCode(e);
+    const bad = BAD_RCPT.test(code);
     await env.DB.batch([
       ...(type === 'sent' ? [env.DB.prepare('UPDATE sites SET sent_at = NULL WHERE slug = ?').bind(row.slug)] : []),
-      env.DB.prepare('INSERT INTO events (slug, type, detail, created_at) VALUES (?, ?, ?, ?)').bind(row.slug, 'send_fail', String(e.message || e).slice(0, 300), now),
-      // a rejected address is skipped from now on
-      ...(/smtp RCPT/.test(e.message) ? [env.DB.prepare('INSERT OR IGNORE INTO suppress (email, why, created_at) VALUES (?, ?, ?)').bind(row.email.toLowerCase(), 'rejected', now)] : []),
+      env.DB.prepare('INSERT INTO events (slug, type, detail, created_at) VALUES (?, ?, ?, ?)').bind(row.slug, 'send_fail', `${code} ${String(e.message || e)}`.slice(0, 300), now),
+      // a rejected address is skipped from now on; any other error stops the sending for a while
+      bad
+        ? env.DB.prepare('INSERT OR IGNORE INTO suppress (email, why, created_at) VALUES (?, ?, ?)').bind(row.email.toLowerCase(), 'rejected', now)
+        : env.DB.prepare('INSERT INTO events (slug, type, detail, created_at) VALUES (?, ?, ?, ?)').bind(null, 'send_pause', code, now),
     ]);
     throw e;
   }
@@ -204,9 +174,11 @@ const NOT_SUPPRESSED = `NOT EXISTS (SELECT 1 FROM suppress x WHERE x.email = low
 
 // called from the cron: sends at most one email per run (a due follow-up first), at most SEND_MAX per day
 export async function sendNext(env, now) {
-  if (env.SEND_ENABLED !== '1' || !env.POSTAL_ADDRESS || !env.ZOHO_SMTP_PASS) return 'off';
+  if (env.SEND_ENABLED !== '1' || !env.POSTAL_ADDRESS || !env.EMAIL) return 'off';
+  const p = await env.DB.prepare("SELECT created_at t, detail FROM events WHERE type = 'send_pause' ORDER BY id DESC LIMIT 1").first();
+  if (p && now < (/DAILY/.test(p.detail) ? p.t - (p.t % 86400) + 86400 : p.t + 6 * 3600)) return 'paused';
   const day = now - (now % 86400);
-  const max = Number(env.SEND_MAX || 15);
+  const max = Number(env.SEND_MAX || 10);
   const today = await env.DB.prepare("SELECT COUNT(*) n FROM events WHERE type IN ('sent', 'followup') AND created_at >= ?").bind(day).first();
   if (today.n >= max) return 'cap';
 
@@ -247,4 +219,19 @@ export async function sendNext(env, now) {
   await env.DB.prepare('UPDATE sites SET sent_at = ? WHERE slug = ? AND sent_at IS NULL').bind(now, pick.row.slug).run();
   const { subject, text } = compose(pick.row, pick.data, env, pick.issue);
   return deliver(env, pick.row, now, 'sent', subject, text);
+}
+
+// The daily report from GitHub Actions (scripts/report_mail.py) waits in the outbox table; it only ever goes to Matías.
+export async function sendOutbox(env, now) {
+  const r = await env.DB.prepare('SELECT * FROM outbox WHERE sent_at IS NULL ORDER BY id LIMIT 1').first();
+  if (!r || !env.MATIAS_EMAIL) return null;
+  await env.DB.prepare('UPDATE outbox SET sent_at = ? WHERE id = ?').bind(now, r.id).run();
+  try {
+    await env.EMAIL.send({ from: { email: FROM, name: 'WebCrafts bot' }, to: env.MATIAS_EMAIL, subject: r.subject, text: r.text, html: r.html || undefined });
+    return `report ${r.id}`;
+  } catch (e) {
+    // try again on the next runs, for a day at most
+    await env.DB.prepare('UPDATE outbox SET sent_at = NULL WHERE id = ? AND created_at > ?').bind(r.id, now - 86400).run();
+    return `report failed: ${errCode(e)}`;
+  }
 }

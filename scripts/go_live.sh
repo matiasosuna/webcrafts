@@ -21,12 +21,8 @@ echo "\n2/4 Stripe live (cuenta LoveWorker)"
 ask STRIPE_LIVE_KEY "Clave secreta LIVE de Stripe (sk_live_…)" "La pestaña de Stripe en Chrome → Create secret key → nombre: webcrafts" Stripe
 STRIPE_LIVE_KEY=$STRIPE_LIVE_KEY python3 scripts/stripe_live.py
 
-echo "\n3/4 Mail (Zoho)"
-ask ZOHO_SMTP_PASS "Contraseña de app de Zoho" "La pestaña de Zoho en Chrome → Generate New Password → nombre: webcrafts" Zoho
-print -rn "matias@webcrafts.page" | wrangler secret put ZOHO_SMTP_USER
-print -rn "$ZOHO_SMTP_PASS" | wrangler secret put ZOHO_SMTP_PASS
+echo "\n3/4 Mail (Cloudflare Email Service: binding EMAIL en wrangler.toml)"
 print -rn "${POSTAL_ADDRESS:-WebCrafts, 9010 Patterson Ave, Henrico, VA 23229}" | wrangler secret put POSTAL_ADDRESS
-print -rn "$ZOHO_SMTP_PASS" | gh secret set ZOHO_SMTP_PASS -R $REPO
 
 echo "\n4/4 GitHub Actions"
 ask CLOUDFLARE_API_TOKEN "Token de Cloudflare" "La pestaña de Cloudflare en Chrome → Create Token (ya está armado)" Cloudflare
