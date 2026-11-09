@@ -91,7 +91,9 @@ export async function receive(message, env, now) {
   // deliverability (DMARC) reports are for machines, not for Matías
   if (/dmarc/i.test(h.get('from') || '') || /^report domain:/i.test(h.get('subject') || '')) return;
   let c = null;
-  try {
+  // our own mail (a test, a loop) is only forwarded: it is not a lead answering
+  const own = /@webcrafts\.page\b/i.test(addr(h.get('from') || ''));
+  if (!own) try {
     const raw = (await new Response(message.raw).text()).slice(0, 400000);
     c = await classify(env, h, raw);
     const site = await env.DB.prepare('SELECT slug FROM sites WHERE lower(email) = ?').bind(c.who || c.from).first();

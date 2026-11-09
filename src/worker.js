@@ -24,6 +24,9 @@ export default {
     const url = new URL(req.url);
     const host = url.hostname.toLowerCase();
     try {
+      // sends the queued daily report now (it can only ever go to Matías, so anyone calling this is harmless)
+      if (url.pathname === '/_outbox' && req.method === 'POST' && (host === APEX || host.endsWith('.workers.dev')))
+        return new Response((await sendOutbox(env, now())) || 'empty');
       if (host === APEX || host === 'www.' + APEX || host.endsWith('.workers.dev') || host === 'localhost') {
         if (host === 'www.' + APEX) return redirect(`https://${APEX}${url.pathname}${url.search}`, 301);
         return await apex(req, env, ctx, url);

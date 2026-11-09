@@ -231,7 +231,10 @@ export async function sendOutbox(env, now) {
     return `report ${r.id}`;
   } catch (e) {
     // try again on the next runs, for a day at most
-    await env.DB.prepare('UPDATE outbox SET sent_at = NULL WHERE id = ? AND created_at > ?').bind(r.id, now - 86400).run();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE outbox SET sent_at = NULL WHERE id = ? AND created_at > ?').bind(r.id, now - 86400),
+      env.DB.prepare('INSERT INTO events (slug, type, detail, created_at) VALUES (?, ?, ?, ?)').bind(null, 'report_fail', `${errCode(e)} ${String(e.message || e)}`.slice(0, 300), now),
+    ]);
     return `report failed: ${errCode(e)}`;
   }
 }

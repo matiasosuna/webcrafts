@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Queue the daily report for Matías. Usage: report_mail.py "subject" report.md
 It goes into the D1 outbox; the Worker emails it from matias@webcrafts.page (Cloudflare Email Service) on its next
-cron run (every 20 min in US hours), only to Matías. The report is simple markdown (bold, ### headings, - lists):
+cron run (every 20 min in US hours), only to Matías; POST /_outbox asks it to send right away. The report is simple markdown (bold, ### headings, - lists):
 it goes as HTML for the phone, with a clean plain-text copy."""
-import html, re, subprocess, sys, time
+import html, re, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,3 +45,7 @@ f.parent.mkdir(exist_ok=True)
 f.write_text(f"INSERT INTO outbox (subject, text, html, created_at) VALUES ({q(sys.argv[1])}, {q(to_text(md))}, {q(to_html(md))}, {int(time.time())});")
 subprocess.run(["npx", "-y", "wrangler@3", "d1", "execute", "webcrafts", "--remote", "--json", "--file", str(f)], cwd=ROOT, capture_output=True, check=True)
 f.unlink()
+try:
+    urllib.request.urlopen(urllib.request.Request("https://webcrafts.page/_outbox", method="POST"), timeout=30).read()
+except Exception:
+    pass  # the cron sends it anyway
