@@ -100,7 +100,7 @@ SALES=$(ev "'activated','reserve','claim_click'")
 SEEN=$(ev "'human_view'")
 FAILS=$(ev "'send_fail','forward_fail'")
 # mail received in the last 24 h (the Worker already forwarded each one to Matías's Gmail): people first
-INBOX=$(d1 "SELECT detail FROM events WHERE type = 'mail_in' AND created_at >= $SINCE ORDER BY CASE WHEN detail LIKE 'Respondió%' THEN 0 WHEN detail LIKE 'Baja%' THEN 1 WHEN detail LIKE 'Respuesta%' THEN 2 ELSE 3 END, created_at" |
+INBOX=$(d1 "SELECT detail, MIN(created_at) t FROM events WHERE type = 'mail_in' AND created_at >= $SINCE GROUP BY detail ORDER BY CASE WHEN detail LIKE 'Respondió%' THEN 0 WHEN detail LIKE 'Baja%' THEN 1 WHEN detail LIKE 'Respuesta%' THEN 2 ELSE 3 END, t" |
   python3 -c 'import json,sys; [print("- **" + r["detail"].replace(" · ", "** ", 1)) for r in json.load(sys.stdin)]')
 SENT=$(n "SELECT COUNT(*) n FROM events WHERE type='sent' AND created_at >= $SINCE")
 NEWB=$(echo $BUILT | wc -w | tr -d ' ')

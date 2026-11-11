@@ -12,7 +12,7 @@ const AUTO = new RegExp(
     'message received|this is an automated',
   'i'
 );
-export const KIND = { reply: 'Respondió', optout: 'Baja', auto: 'Respuesta automática', bounce: 'Rebote' };
+export const KIND = { reply: 'Respondió', optout: 'Baja', auto: 'Respuesta automática', bounce: 'Rebote', other: 'Otro mail' };
 
 const bytes = (bin) => Uint8Array.from(bin, (c) => c.charCodeAt(0) & 255);
 function decode(body, cte = '', charset = 'utf-8') {
@@ -81,6 +81,11 @@ export async function classify(env, h, raw) {
     }
     return { kind: 'bounce', from, subject, first, who: bad, why: bad && 'bounce' };
   }
+  // a lead writes from the address we emailed, or answers one of our mails; anything else (SEO spam, Zoho notices) is
+  // only forwarded: it is not a lead answering, and nobody gets suppressed for it
+  const lead = await env.DB.prepare('SELECT 1 FROM sites WHERE lower(email) = ?').bind(from).first();
+  const answers = /@webcrafts\.page/i.test(`${h.get('in-reply-to') || ''} ${h.get('references') || ''}`) || /^\s*re\s*:/i.test(subject);
+  if (!lead && !answers) return { kind: 'other', from, subject, first };
   if (OPTOUT.test(first) || /unsubscribe/i.test(subject)) return { kind: 'optout', from, subject, first, who: from, why: 'opt-out' };
   if (isAuto(h, subject, first)) return { kind: 'auto', from, subject, first }; // not suppressed: the follow-up still goes
   return { kind: 'reply', from, subject, first, who: from, why: 'replied' }; // no follow-up once they answered: Matías takes it
